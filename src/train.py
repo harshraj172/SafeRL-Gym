@@ -18,6 +18,7 @@ import gym
 from tqdm.auto import tqdm
 from agent.base import BaseAgent
 from agent.drrn import DRRNAgent 
+from agent.ppo import PPOAgent
 from env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
 import logger
 from utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
@@ -50,7 +51,7 @@ def parse_args():
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
     parser.add_argument('--num_envs', default=8, type=int, help="Number of instances of env (for diverse rollouts)")
-    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'Random'])
+    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'Random'])
     parser.add_argument('--max_steps', default=50000, type=int)
     parser.add_argument('--update_freq', default=1, type=int)
     parser.add_argument('--checkpoint_freq', default=1000, type=int)
@@ -121,6 +122,9 @@ def train(
 
     # Convert raw text obs -> agent states
     states = build_state(agent._tokenize, obs, infos)
+
+    # print(obs, rewards, dones, infos, transitions)
+    # print(states)
     
     # Each environment must provide the valid actions in some form
     valid_ids = [
@@ -244,6 +248,8 @@ def main():
     # Possibly pass environment-specific dimensions
     if args.agent_type == 'DRRN':
         agent = DRRNAgent(args)
+    elif args.agent_type == 'PPO':
+        agent = PPOAgent(args)
     else:
         agent = BaseAgent(args)
 
