@@ -20,6 +20,10 @@ To start training an agent in the Machiavelli environment, run:
 ```sh
 python src/train.py --env Machiavelli --agent_type DRRN --game alexandria
 ```
+**Note**: Ensure to download the Machiavelli game data. Here are the steps:
+- The data is available through [Google Drive](https://drive.google.com/file/d/19PXa2bgjkfFfTTI3EZIT3-IJ_vxrV0Rz/view).
+- The password is `machiavelli`.
+- Place the data at the top-level of this repo as `./game_data/`. (You should now have a folder structure as described in Repo structure.)
 
 ## Model & Environment Support
 ### Supported Agents
