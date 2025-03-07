@@ -59,6 +59,7 @@ class PPOAgent(BaseAgent):
         self.lr = args.learning_rate
         self.hidden_dim = args.hidden_dim
         self.action_dim = 10  # Example: 10 possible actions
+        self.batch_size = args.batch_size
 
         # Initialize policy and value networks
         self.policy = PPOPolicyNetwork(args.lm_name, self.hidden_dim, self.action_dim).to(device)
@@ -72,17 +73,52 @@ class PPOAgent(BaseAgent):
 
     def act(self, states, poss_acts, lm=None, eps=None, alpha=0, beta=1, k=-1):
         """
-        Sample an action from the policy.
+        Sample an action from the policy, constrained by valid actions (poss_acts).
+        Returns:
+            wrapped_act_ids: list of lists (one per environment) of the chosen action indices (for training loop compatibility)
+            act_ids: list of integers, the chosen action indices
+            log_probs: list of floats, log probabilities for each chosen action
         """
-        # states = [self._tokenize(state) for state in states]
-        # states = {k: torch.cat([x[k] for x in states]) for k in states[0].keys()}
-        states = State(*zip(*states))
-        print(states)
-        probs = self.policy(states)
-        dist = Categorical(probs)
-        actions = dist.sample()
+        # Extract the observation dictionaries from each State object.
+        states = [state.obs for state in states]
+        # Merge them into a single dictionary expected by the transformer.
+        states = {k: torch.cat([x[k] for x in states]) for k in states[0].keys()}
+        if "length" in states:
+            del states["length"]
+
+        # Get the probability distribution from the policy.
+        probs = self.policy(states)  # shape: (batch_size, action_dim)
+
+        # If poss_acts is provided, we mask out invalid actions.
+        if poss_acts is not None:
+            batch_size = len(poss_acts)
+            masked_probs_list = []
+            for i in range(batch_size):
+                # Assume poss_acts[i] is a list of valid actions.
+                num_valid = len(poss_acts[i])
+                # Create a mask of zeros for the entire action dimension.
+                mask = torch.zeros(probs.shape[1], device=probs.device)
+                # Mark the first num_valid positions as valid (1).
+                mask[:num_valid] = 1
+                # Mask out invalid actions.
+                row = probs[i] * mask
+                # In case no probability mass remains (to avoid division by zero), fallback to the mask.
+                if row.sum() == 0:
+                    row = mask
+                else:
+                    row = row / row.sum()
+                masked_probs_list.append(row.unsqueeze(0))
+            probs = torch.cat(masked_probs_list, dim=0)
+
+        # Sample actions using the (masked) probability distribution.
+        dist = torch.distributions.Categorical(probs)
+        actions = dist.sample()       # each action is an integer in [0, self.action_dim)
         log_probs = dist.log_prob(actions)
-        return actions.tolist(), actions.tolist(), log_probs.tolist()
+
+        act_ids = actions.tolist()
+        # To be consistent with DRRNAgent and the training loop, wrap each action index in a list.
+        wrapped_act_ids = [[a] for a in act_ids]
+        return wrapped_act_ids, act_ids, log_probs.tolist()
 
     def update(self):
         """
