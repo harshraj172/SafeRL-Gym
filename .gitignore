@@ -1,0 +1,7 @@
+game_data
+machiavelli
+checkpoints_utility
+# python
+__pycache__/
+.DS_Store
+analysis/random*

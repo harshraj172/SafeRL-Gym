@@ -30,3 +30,6 @@ python src/train.py --env Machiavelli --agent_type DRRN --game alexandria
 - **MachiavelliEnv**: Custom environment with a focus on ethical reinforcement learning.
 - **BaseEnv**: Generic environment for customizable experiments.
 
+## Notebooks
+
+- `notebooks/machiavelli_trajectory_analysis.ipynb` contains analysis of machiavelli games and possible trajectories in those games
