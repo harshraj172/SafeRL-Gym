@@ -1,3 +1,5 @@
+import gc
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -24,7 +26,7 @@ def batch_encoded_tokens(x):
 class PPONetwork(nn.Module):
     def __init__(self, lm_name, stats_dim, hidden_dim):
         super().__init__()
-        self.embedding = AutoModel.from_pretrained(lm_name)
+        self.embedding = AutoModel.from_pretrained(lm_name).to(device)
         self.stats_dim = stats_dim
         embedding_dim = self.embedding.config.hidden_size
         initializer_range = self.embedding.config.initializer_range  # Get from LM config
@@ -75,6 +77,7 @@ class PPONetwork(nn.Module):
         
         # Get embeddings for all actions
         act_encodings = batch_encoded_tokens(flat_actions)
+        # Get action embeddings from transformer
         act_emb = self.embedding(**act_encodings)['last_hidden_state'][:, 0, :]
         
         # Expand states to match flattened actions
@@ -119,7 +122,8 @@ class PPOAgent(BaseAgent):
         self.entropy_coef = 0.01
         self.gamma = args.gamma
         self.gae_lambda = 0.95
-        self.ppo_epochs = 4
+        self.ppo_epochs = 1
+        self.max_segment_length = 8
         
         self.optimizer = optim.Adam(self.network.parameters(), lr=args.learning_rate)
         
@@ -180,7 +184,7 @@ class PPOAgent(BaseAgent):
         self.transitions[env_idx].append(ppo_transition)
         
         # If we reach a done state or max segment length, complete the episode
-        if transition.done or len(self.transitions[env_idx]) >= 64:
+        if transition.done or len(self.transitions[env_idx]) >= self.max_segment_length:
             if not any(t.action is None for t in self.transitions[env_idx]):
                 self.completed_episodes.append(self.transitions[env_idx])
             self.transitions[env_idx] = []
@@ -278,7 +282,6 @@ class PPOAgent(BaseAgent):
             # Multiple optimization epochs
             for _ in range(self.ppo_epochs):
                 state_batch = states
-                
                 action_scores, values = self.network(state_batch)
                 dist = Categorical(F.softmax(action_scores, dim=-1))
                 new_log_probs = dist.log_prob(actions)
@@ -298,11 +301,11 @@ class PPOAgent(BaseAgent):
                 # Update network
                 self.optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.network.parameters(), 0.5)
+                # torch.nn.utils.clip_grad_norm_(self.network.parameters(), 0.5)
                 self.optimizer.step()
-                
                 total_loss += loss.item()
         
+
         # Update old network
         self.old_network.load_state_dict(self.network.state_dict())
         

@@ -85,7 +85,7 @@ def parse_args():
     parser.add_argument('--clip', default=5, type=float)
     parser.add_argument('--embedding_dim', default=128, type=int)
     parser.add_argument('--hidden_dim', default=128, type=int)
-    parser.add_argument('--lm_name', default='microsoft/deberta-v3-large', type=str)
+    parser.add_argument('--lm_name', default='microsoft/deberta-v3-xsmall', type=str)
     parser.add_argument('--regularizer_lm_name',
                         default='microsoft/deberta-v3-large', type=str)
     parser.add_argument('--lm_top_k', default=30, type=int,
@@ -149,6 +149,11 @@ def train(
                 agent.memory.clear_alpha()
             if done:
                 tb.logkv_mean('EpisodeScore', info['game_state']['points'])
+                tb.logkv("EpisodeLength", step)
+                tb.logkv("NumAch", len(info['game_state']['unlocked_achievements']))
+                tb.logkv("Cost", info['game_state']['safety_cost'])
+                tb.logkv("Corr+", info['game_state']['positive_correlation'])
+                tb.logkv("Corr", info['game_state']['correlation'])
                 if env.curr_points() >= max_score:  # put in alpha queue
                     for transition in transitions[i]:
                         agent.observe(transition, is_prior=True)
@@ -170,6 +175,11 @@ def train(
         log("Reward{}: {}, Score {}, Num ach {}, Done {}\n".format(
             step, rewards[0], infos[0]['game_state']['points'],
             len(infos[0]['game_state']['unlocked_achievements']), dones[0]))
+        log("Safety cost {}, Positive correlation {}, Correlation {}\n".format(
+            infos[0]['game_state']['safety_cost'],
+            infos[0]['game_state']['positive_correlation'],
+            infos[0]['game_state']['correlation']
+        ))
 
         next_states = build_state(
             agent._tokenize, next_obs, infos, prev_obs=obs, prev_acts=action_strs)
@@ -198,8 +208,11 @@ def train(
             os.makedirs(savedir, exist_ok=True)
             torch.save(
                 agent,
-                savedir + '{}_game{}.pt'.format(args.env, args.game)
+                savedir + '{}_{}_{}_game{}.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game)
             )
+            # save args as json
+            with open(savedir + '{}_{}_{}_game{}.json'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game), 'w') as f:
+                json.dump(vars(args), f, indent=4)
         del action_ids, action_idxs
         if step % 1000 == 0:
              print("empty cache")
@@ -212,12 +225,13 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
+    output_dir = os.path.join(args.output_dir, args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game)
     # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
     # Configure logger
     suffix = args.env
-    configure_logger(args.output_dir, suffix,
+    configure_logger(output_dir, suffix,
                      args.tensorboard, args.wandb, args)
 
     # Create environments

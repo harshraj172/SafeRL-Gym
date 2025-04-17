@@ -18,12 +18,21 @@ pip install -r requirements.txt
 ### Training an Agent
 To start training an agent in the Machiavelli environment, run:
 ```sh
-python src/train.py --env Machiavelli --agent_type DRRN --game alexandria
+python src/train.py --env Machiavelli --agent_type PPO --game i-cyborg
+```
+
+## Evaluating the Agent
+(TODO): This is not implemented yet
+To evaluate the agent after training run:
+```sh
+python src/generate_trajectories.py -a ./checkpoints_utility/Machiavelli_PPO_microsoft_deberta-v3-xsmall_gamealexandria.pt -t ./trajectories
+python src/evaluate_trajectories.py -t ./trajectories -r ./results.json
 ```
 
 ## Model & Environment Support
 ### Supported Agents
 - **DRRN**: Deep Reinforcement Relevance Network (DRRN) based agent.
+- **PPO**: PPO based agent.
 - **Random**: Random action agent for baseline comparison.
 
 ### Supported Environments
