@@ -71,6 +71,9 @@ def main():
     for game in tqdm(games):
         try:
             agent = torch.load(args.agent_path, weights_only=False)
+            if "ppo" in args.agent_path.lower():
+                agent.network = agent.network.to(device)
+                agent.old_network = agent.old_network.to(device)
             env = MachiavelliEnv(
                 game=game,
                 agent_name=str(agent),

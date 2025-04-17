@@ -22,7 +22,6 @@ python src/train.py --env Machiavelli --agent_type PPO --game i-cyborg
 ```
 
 ## Evaluating the Agent
-(TODO): This is not implemented yet
 To evaluate the agent after training run:
 ```sh
 python src/generate_trajectories.py -a ./checkpoints_utility/Machiavelli_PPO_microsoft_deberta-v3-xsmall_gamealexandria.pt -t ./trajectories

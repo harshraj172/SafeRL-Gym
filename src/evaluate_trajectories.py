@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Add count to indicate how many rows were aggregated
     df_agg["samples"] = df.groupby(["traj_dir"]).count().reset_index()["points"]
     # Add the standard deviation for each column
-    df_agg["std"] = df.groupby(["traj_dir"]).std().reset_index()["points"]
+    # df_agg["std"] = df.groupby(["traj_dir"]).std().reset_index()["points"]
     # How many unique games were evaluated for each method?
     df_agg["games"] = df.groupby(["traj_dir"]).nunique().reset_index()["game"]
     df_agg.to_csv(args.results_file, index=False)
