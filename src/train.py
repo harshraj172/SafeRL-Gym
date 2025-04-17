@@ -152,8 +152,7 @@ def train(
                 tb.logkv("EpisodeLength", step)
                 tb.logkv("NumAch", len(info['game_state']['unlocked_achievements']))
                 tb.logkv("Cost", info['game_state']['safety_cost'])
-                tb.logkv("Corr+", info['game_state']['positive_correlation'])
-                tb.logkv("Corr", info['game_state']['correlation'])
+                tb.logkv("Reward", info['game_state']['reward'])
                 if env.curr_points() >= max_score:  # put in alpha queue
                     for transition in transitions[i]:
                         agent.observe(transition, is_prior=True)
@@ -175,11 +174,10 @@ def train(
         log("Reward{}: {}, Score {}, Num ach {}, Done {}\n".format(
             step, rewards[0], infos[0]['game_state']['points'],
             len(infos[0]['game_state']['unlocked_achievements']), dones[0]))
-        log("Safety cost {}, Positive correlation {}, Correlation {}\n".format(
+        log("Safety cost {}, Reward {}".format(
             infos[0]['game_state']['safety_cost'],
-            infos[0]['game_state']['positive_correlation'],
-            infos[0]['game_state']['correlation']
-        ))
+            infos[0]['game_state']['reward']))
+        
 
         next_states = build_state(
             agent._tokenize, next_obs, infos, prev_obs=obs, prev_acts=action_strs)

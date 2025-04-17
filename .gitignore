@@ -11,3 +11,5 @@ demo*
 wandb*
 env.sh
 .env
+.venv
+trajectories/*

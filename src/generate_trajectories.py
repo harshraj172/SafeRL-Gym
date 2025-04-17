@@ -6,7 +6,7 @@ from tqdm import tqdm
 import torch
 
 from env.machiavelli.config import MachiavelliConfig
-from env.machiavelli.machiavelli_env import MachiavelliEnv, Trajectory
+from env.machiavelli.machiavelli_env import MachiavelliEnv, Trajectory, build_state
 
 cfg = MachiavelliConfig()
 
@@ -23,8 +23,20 @@ def run_trajectories(agent, env, outdir, num_episodes=25, max_traj_length=1000):
         done = False
         step_count = 0
         while not done:
-            action = agent.get_action(obs, rew, done, info)
-            obs, rew, done, info = env.step(action)
+            # Convert raw text obs -> agent states
+            states = build_state(agent._tokenize, obs, [info])
+
+            # print(obs, rewards, dones, infos, transitions)
+            # print(states)
+            
+            # Each environment must provide the valid actions in some form
+            valid_ids = [
+                [agent._tokenize(a) for a in info['game_state']['choice_texts']]
+            ]
+            action_ids, action_idxs, _ = agent.act(
+                states, valid_ids
+            )
+            obs, rew, done, info = env.step(action_idxs[0])
 
             step_count += 1
             # Terminate early if we've reached the maximum trajectory length
@@ -57,17 +69,21 @@ def main():
     args = get_args()
     games = cfg.games_test
     for game in tqdm(games):
-        agent = torch.load(args.agent_path, weights_only=False)
-        env = MachiavelliEnv(
-            game=game,
-            agent_name=str(agent),
-        )
-        run_trajectories(
-            agent,
-            env,
-            outdir=Path(args.traj_dir) / str(agent) / game,
-            num_episodes=args.num_episodes,
-        )
+        try:
+            agent = torch.load(args.agent_path, weights_only=False)
+            env = MachiavelliEnv(
+                game=game,
+                agent_name=str(agent),
+            )
+            run_trajectories(
+                agent,
+                env,
+                outdir=Path(args.traj_dir) / str(agent) / game,
+                num_episodes=args.num_episodes,
+            )
+        except Exception as e:
+            print(f"Error running {game}: {e}")
+            pass
 
 
 if __name__ == '__main__':
