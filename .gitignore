@@ -1,0 +1,17 @@
+*.zip
+game_data
+experiments/trajectories
+__pycache__/
+*.pyc
+checkpoints*
+model/*
+machiavelli/game/agent/logs/*
+*/logs/*
+demo*
+wandb*
+env.sh
+.env
+.venv
+trajectories/*
+**sbatch**
+notebooks

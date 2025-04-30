@@ -3,7 +3,7 @@ from collections import namedtuple
 import random
 
 State = namedtuple('State', ('obs', 'description', 'inventory', 'state'))
-Transition = namedtuple('Transition', ('state', 'act', 'reward', 'next_state', 'next_acts', 'done'))
+Transition = namedtuple('Transition', ('state', 'act', 'reward', 'next_state', 'next_acts', 'done', 'cost'))
 
 
 def read_json(file_path):

@@ -17,9 +17,10 @@ class BaseAgent:
         :param args: The argparse Namespace with hyperparameters/settings.
         """
         # If you'd like to keep the same memory usage
-        self.memory = PrioritizedReplayMemory(args.memory_size, args.priority_fraction)
-
-        self.tokenizer = AutoTokenizer.from_pretrained(args.lm_name, model_max_length=512)
+        if hasattr(args, 'memory_size'):
+            self.memory = PrioritizedReplayMemory(args.memory_size, args.priority_fraction)
+        if hasattr(args, 'lm_name'):
+            self.tokenizer = AutoTokenizer.from_pretrained(args.lm_name, model_max_length=512)
 
         self.configure = False
         self.lm = None
@@ -27,6 +28,8 @@ class BaseAgent:
         self.beta = 1
 
     def _tokenize(self, text):
+        if not hasattr(self, 'tokenizer'):
+            return None
         encoding = self.tokenizer(
             clean(text), 
             padding=True, 
