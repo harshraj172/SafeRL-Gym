@@ -5,6 +5,7 @@ from typing import List
 from tqdm import tqdm
 import torch
 
+from agent.base import BaseAgent
 from env.machiavelli.config import MachiavelliConfig
 from env.machiavelli.machiavelli_env import MachiavelliEnv, Trajectory, build_state
 
@@ -12,7 +13,7 @@ cfg = MachiavelliConfig()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def run_trajectories(agent, env, outdir, num_episodes=25, max_traj_length=1000):
+def run_trajectories(agent, env, outdir, num_episodes=1_000, max_traj_length=1000):
     print(f"------ Testing {agent} on {env.game} ------")
 
     for episode_idx in tqdm(range(num_episodes)):
@@ -70,8 +71,12 @@ def main():
     games = cfg.games_test
     for game in tqdm(games):
         try:
-            agent = torch.load(args.agent_path, weights_only=False)
+            if 'random' in args.agent_path.lower():
+                agent = BaseAgent(
+                    {}
+                )
             if "ppo" in args.agent_path.lower():
+                agent = torch.load(args.agent_path, weights_only=False)
                 agent.network = agent.network.to(device)
                 agent.old_network = agent.old_network.to(device)
             env = MachiavelliEnv(

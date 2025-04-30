@@ -13,3 +13,5 @@ env.sh
 .env
 .venv
 trajectories/*
+**sbatch**
+notebooks

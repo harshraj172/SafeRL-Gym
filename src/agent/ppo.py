@@ -107,7 +107,8 @@ class PPONetwork(nn.Module):
 
 # Define a PPO-specific transition tuple
 PPOTransition = namedtuple('PPOTransition', 
-    ('state', 'action', 'log_prob', 'value', 'reward', 'done', 'next_state', 'next_acts', 'advantage', 'returns'))
+    ('state', 'action', 'log_prob', 'value', 'reward', 'done', 'next_state', 'next_acts', 'advantage', 'returns', 'cost', 
+    'cost_returns'))
 
 class PPOAgent(BaseAgent):
     def __init__(self, args):
@@ -122,8 +123,8 @@ class PPOAgent(BaseAgent):
         self.entropy_coef = 0.01
         self.gamma = args.gamma
         self.gae_lambda = 0.95
-        self.ppo_epochs = 1
-        self.max_segment_length = 8
+        self.ppo_epochs = 4
+        self.max_segment_length = 32
         
         self.optimizer = optim.Adam(self.network.parameters(), lr=args.learning_rate)
         
@@ -176,6 +177,8 @@ class PPOAgent(BaseAgent):
             done=transition.done,
             next_state=transition.next_state,
             next_acts=transition.next_acts,
+            cost=transition.cost, # Safety cost of taking a given action
+            cost_returns=None,
             advantage=None,
             returns=None
         )
@@ -201,9 +204,11 @@ class PPOAgent(BaseAgent):
         rewards = [t.reward for t in valid_transitions]
         values = [t.value for t in valid_transitions]
         dones = [t.done for t in valid_transitions]
+        costs = [t.cost for t in valid_transitions]
         
         advantages = np.zeros(len(rewards), dtype=np.float32)
         returns = np.zeros(len(rewards), dtype=np.float32)
+        cost_returns = np.zeros(len(costs), dtype=np.float32)
         
         # If not terminal, bootstrap value from last state
         if not is_terminal and len(valid_transitions) > 0:
@@ -220,6 +225,7 @@ class PPOAgent(BaseAgent):
         
         next_advantage = 0
         next_return = 0  # Initialize next_return
+        next_cost = 0
         
         for t in reversed(range(len(rewards))):
             # Safely convert done to 0 or 1, handling any type
@@ -228,19 +234,23 @@ class PPOAgent(BaseAgent):
             if dones[t]:
                 next_return = 0
                 next_advantage = 0
+                next_cost = 0
             
             # Use done_mask instead of (1 - int(dones[t]))
             returns[t] = rewards[t] + self.gamma * next_return * done_mask
             delta = rewards[t] + self.gamma * next_value * done_mask - values[t]
             advantages[t] = delta + self.gamma * self.gae_lambda * next_advantage * done_mask
+            cost_returns[t] = costs[t] + self.gamma * next_cost * done_mask
             
             next_return = returns[t]
             next_value = values[t]
             next_advantage = advantages[t]
+            next_cost = cost_returns[t]
         
         # Normalize advantages
         if len(advantages) > 1:
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        
         
         # Update episode data with new advantages and returns
         for i in range(len(episode)):
@@ -254,7 +264,9 @@ class PPOAgent(BaseAgent):
                 next_state=episode[i].next_state,
                 next_acts=episode[i].next_acts,
                 advantage=advantages[i],
-                returns=returns[i]
+                returns=returns[i],
+                cost=episode[i].cost,
+                cost_returns=cost_returns[i]
             )
         
         return advantages, returns
@@ -305,6 +317,78 @@ class PPOAgent(BaseAgent):
                 self.optimizer.step()
                 total_loss += loss.item()
         
+
+        # Update old network
+        self.old_network.load_state_dict(self.network.state_dict())
+        
+        # Clear completed episodes
+        self.completed_episodes = []
+        
+        return total_loss
+
+class PPOLagAgent(PPOAgent):
+    """Proximal Policy Optimization with Lagrange multiplier for constraint handling"""
+    def __init__(self, args):
+        super().__init__(args)
+        self.lagrange_multiplier = torch.tensor(1.0, requires_grad=True, device=device)
+        self.lagrange_lr = 0.001
+        self.lagrange_optimizer = optim.Adam([{'params': [self.lagrange_multiplier], 'lr': self.lagrange_lr}])
+        
+    def update(self):
+        """Update policy using PPO"""
+        if not self.completed_episodes:
+            return 0.0  # No data to update from
+        
+        total_loss = 0
+        
+        # Now process all completed episodes
+        for episode in self.completed_episodes:
+            # Compute advantages for this episode if not already done
+            if episode[0].advantage is None:
+                self._compute_truncated_advantages(episode, episode[-1].done)
+            
+            # Get episode data
+            states = [t.state for t in episode]
+            actions = torch.tensor([t.action for t in episode], device=device, dtype=torch.long)
+            old_log_probs = torch.tensor([t.log_prob for t in episode], device=device, dtype=torch.float32)
+            advantages = torch.tensor([t.advantage for t in episode], device=device, dtype=torch.float32)
+            returns = torch.tensor([t.returns for t in episode], device=device, dtype=torch.float32)
+            cost_returns = torch.tensor([t.cost_returns for t in episode], device=device, dtype=torch.float32)
+            costs = torch.tensor([t.cost for t in episode], device=device, dtype=torch.float32)
+            # Multiple optimization epochs
+            for _ in range(self.ppo_epochs):
+                state_batch = states
+                action_scores, values = self.network(state_batch)
+                dist = Categorical(F.softmax(action_scores, dim=-1))
+                new_log_probs = dist.log_prob(actions)
+                entropy = dist.entropy().mean()
+                
+                # Calculate ratios and surrogate losses
+                ratios = torch.exp(new_log_probs - old_log_probs)
+                advantages = advantages - self.lagrange_multiplier.detach() * cost_returns.mean()
+                surr1 = ratios * advantages
+                surr2 = torch.clamp(ratios, 1-self.clip_epsilon, 1+self.clip_epsilon) * advantages
+                
+                # PPO policy and value losses
+                policy_loss = -(torch.min(surr1, surr2).mean())
+                value_loss = F.mse_loss(values.squeeze(), returns)
+                entropy_loss = -self.entropy_coef * entropy
+                
+                loss = policy_loss + 0.5 * value_loss + entropy_loss
+                
+                # Update network
+                self.optimizer.zero_grad()
+                loss.backward()
+                # torch.nn.utils.clip_grad_norm_(self.network.parameters(), 0.5)
+                self.optimizer.step()
+                total_loss += loss.item()
+                # Update Lagrange multiplier to maximize the loss
+            
+                self.lagrange_optimizer.zero_grad()
+                loss = -(self.lagrange_multiplier * cost_returns.mean())
+                loss.backward()
+                self.lagrange_optimizer.step()
+
 
         # Update old network
         self.old_network.load_state_dict(self.network.state_dict())

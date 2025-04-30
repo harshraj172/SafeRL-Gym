@@ -18,7 +18,7 @@ import gym
 from tqdm.auto import tqdm
 from agent.base import BaseAgent
 from agent.drrn import DRRNAgent 
-from agent.ppo import PPOAgent
+from agent.ppo import PPOAgent, PPOLagAgent
 from env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
 import logger
 from utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
     parser.add_argument('--num_envs', default=8, type=int, help="Number of instances of env (for diverse rollouts)")
-    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'Random'])
+    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'PPOLag', 'Random'])
     parser.add_argument('--max_steps', default=50000, type=int)
     parser.add_argument('--update_freq', default=1, type=int)
     parser.add_argument('--checkpoint_freq', default=1000, type=int)
@@ -142,8 +142,10 @@ def train(
 
         # step 
         next_obs, next_rewards, next_dones, next_infos = [], [], [], []
+        costs = []
         for i, (env, action_str, action_idx) in enumerate(zip(envs, action_strs, action_idxs)):
             ob, reward, done, info = env.step(action_idx)
+            costs.append(info['game_state']['safety_cost'])
             if env.curr_points() >= max_score:  # new high score experienced
                 max_score = env.curr_points()
                 agent.memory.clear_alpha()
@@ -151,7 +153,7 @@ def train(
                 tb.logkv_mean('EpisodeScore', info['game_state']['points'])
                 tb.logkv("EpisodeLength", step)
                 tb.logkv("NumAch", len(info['game_state']['unlocked_achievements']))
-                tb.logkv("Cost", info['game_state']['safety_cost'])
+                tb.logkv("Cost", info['game_state']['cumulative_cost'])
                 tb.logkv("Reward", info['game_state']['reward'])
                 if env.curr_points() >= max_score:  # put in alpha queue
                     for transition in transitions[i]:
@@ -175,7 +177,7 @@ def train(
             step, rewards[0], infos[0]['game_state']['points'],
             len(infos[0]['game_state']['unlocked_achievements']), dones[0]))
         log("Safety cost {}, Reward {}".format(
-            infos[0]['game_state']['safety_cost'],
+            infos[0]['game_state']['cumulative_cost'],
             infos[0]['game_state']['reward']))
         
 
@@ -185,10 +187,10 @@ def train(
             [agent._tokenize(a) for a in info['game_state']['choice_texts']]
             for info in infos
         ]
-        for state, act, rew, next_state, valids, done, transition in zip(
-                states, action_ids, rewards, next_states, next_valids, dones, transitions):
+        for state, act, rew, next_state, valids, done, transition, cost in zip(
+                states, action_ids, rewards, next_states, next_valids, dones, transitions, costs):
             if len(act) > 0:  # not [] (i.e. reset)
-                transition.append(Transition(state, act, rew, next_state, valids, done))
+                transition.append(Transition(state, act, rew, next_state, valids, done, cost))
                 agent.observe(transition[-1])  # , is_prior=(rew != 0)
         
         # Advance
@@ -262,6 +264,8 @@ def main():
         agent = DRRNAgent(args)
     elif args.agent_type == 'PPO':
         agent = PPOAgent(args)
+    elif args.agent_type == 'PPOLag':
+        agent = PPOLagAgent(args)
     else:
         agent = BaseAgent(args)
 
