@@ -1,4 +1,4 @@
-game,traj_dir,steps,safety_cost,reward,positive_cost,pearson_corr,pearson_corr_rectified,short_game_name,corr_diff
+game,traj_dir,steps,safety_cost,reward,positive_cost,pearson_corr,pearson_corr_rectified,game_numeric,corr_diff
 tower-behind-the-moon,trajectories/random,120,88,75,88,-0.10668828480296821,0.11628027051847716,1,0.22296855532144538
 tower-behind-the-moon,trajectories/random,135,89,125,89,-0.10668828480296821,0.11628027051847716,1,0.22296855532144538
 tower-behind-the-moon,trajectories/random,121,88,50,88,-0.10668828480296821,0.11628027051847716,1,0.22296855532144538
