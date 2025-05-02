@@ -1,251 +1,204 @@
 import os
 import time
-import json
 import random
 import argparse
 import logging
-from typing import List
 
 import numpy as np
-
-# Patch for NumPy versions that do not expose np.bool8.
-if not hasattr(np, 'bool8'):
-    np.bool8 = np.bool_
-
 import torch
 import gym
-
 from tqdm.auto import tqdm
+
 from agent.base import BaseAgent
-from agent.drrn import DRRNAgent 
+from agent.drrn import DRRNAgent
 from agent.ppo import PPOAgent
 from env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
 import logger
-from utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
+from utils import read_json, Transition
 
+# suppress noisy logs
 logging.getLogger().setLevel(logging.CRITICAL)
 
-
-def configure_logger(log_dir, suffix, add_tb=1, add_wb=1, args=None):
+def configure_logger(log_dir, suffix, add_tb=True, add_wb=True, args=None):
     logger.configure(log_dir, format_strs=['log'])
-    global tb
-    log_types = [logger.make_output_format('log', log_dir, log_suffix=suffix),
-                 logger.make_output_format('json', log_dir, log_suffix=suffix),
-                 logger.make_output_format('stdout', log_dir, log_suffix=suffix)]
-    if add_tb:
-        log_types += [logger.make_output_format(
-            'tensorboard', log_dir, log_suffix=suffix)]
-    if add_wb:
-        log_types += [logger.make_output_format(
-            'wandb', log_dir, log_suffix=suffix, args=args)]
-    tb = logger.Logger(log_dir, log_types)
-    global log
+    global tb, log
+    tb = logger.Logger(
+        log_dir,
+        [logger.make_output_format('log', log_dir, log_suffix=suffix),
+         logger.make_output_format('json', log_dir, log_suffix=suffix),
+         logger.make_output_format('stdout', log_dir, log_suffix=suffix)]
+        + ([logger.make_output_format('tensorboard', log_dir, log_suffix=suffix)] if add_tb else [])
+        + ([logger.make_output_format('wandb', log_dir, log_suffix=suffix, args=args)] if add_wb else [])
+    )
     log = logger.log
 
 def parse_args():
-    """Parses command-line arguments."""
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--output_dir', default='./machiavelli/game/agent/logs/')
-    parser.add_argument('--game', type=str, default="alexandria", help="game present in the env")
-    parser.add_argument('--seed', default=0, type=int)
-    parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
-    parser.add_argument('--num_envs', default=8, type=int, help="Number of instances of env (for diverse rollouts)")
-    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'Random'])
-    parser.add_argument('--max_steps', default=50000, type=int)
-    parser.add_argument('--update_freq', default=1, type=int)
-    parser.add_argument('--checkpoint_freq', default=1000, type=int)
-    parser.add_argument('--eval_freq', default=5000, type=int)
-    parser.add_argument('--log_freq', default=100, type=int)
-    parser.add_argument('--memory_size', default=10000, type=int)
-    parser.add_argument('--priority_fraction', default=0.5, type=float)
-    parser.add_argument('--batch_size', default=16, type=int)
+    p = argparse.ArgumentParser()
+    # general
+    p.add_argument('--output_dir',      default='./machiavelli/game/agent/logs/')
+    p.add_argument('--game',            default='alexandria', type=str)
+    p.add_argument('--seed',            default=0,           type=int)
+    p.add_argument('--env',             default='Machiavelli', type=str)
+    p.add_argument('--num_envs',        default=8,           type=int)
+    p.add_argument('--agent_type',      default='PPO',       choices=['DRRN','PPO','Random'])
+    p.add_argument('--max_steps',       default=50000,       type=int)
+    p.add_argument('--update_freq',     default=1,           type=int)
+    p.add_argument('--checkpoint_freq', default=1000,        type=int)
+    p.add_argument('--log_freq',        default=100,         type=int)
+    # logging
+    p.add_argument('--tensorboard', default=0, type=int)
+    p.add_argument('--wandb',       default=0, type=int)
+    p.add_argument('--wandb_project', default='machiavelli_drrn_agent', type=str)
+    # machiavelli-specific
+    p.add_argument('--eps',            default=None, type=float)
+    p.add_argument('--eps_top_k',      default=-1,   type=int)
+    p.add_argument('--alpha',          default=0,    type=float)
+    p.add_argument('--logit_threshold',default=0.5,  type=float)
+    p.add_argument('--reg_weights',    default='0,0,0', type=str)
+    p.add_argument('--beta',           default=1,    type=float)
+    # common algos
+    p.add_argument('--gamma',         default=0.9,   type=float)
+    p.add_argument('--learning_rate', default=1e-4,  type=float)
+    p.add_argument('--hidden_dim',    default=128,   type=int)
+    p.add_argument('--lm_name',       default='microsoft/deberta-v3-large', type=str)
+    p.add_argument('--memory_size',     default=10000, type=int)
+    p.add_argument('--priority_fraction', default=0.5, type=float)
+    p.add_argument('--batch_size',      default=16, type=int)
+    return p.parse_args()
 
-    # logger
-    parser.add_argument('--tensorboard', default=0, type=int)
-    parser.add_argument('--wandb', default=0, type=int)
-    parser.add_argument('--wandb_project', default='machiavelli_drrn_agent', type=str)
-
-    # Machiavelli specific
-    parser.add_argument('--eps', default=None, type=float,
-                        help='None: ~ softmax act_value; else eps-greedy-exploration')
-    parser.add_argument('--eps_top_k', default=-1, type=int,
-                        help='-1: uniform exploration; 0: ~ softmax lm_value; >0: ~ uniform(top k w.r.t. lm_value)')
-    parser.add_argument('--alpha', default=0, type=float,
-                        help='act_value = -alpha * bert_value + q_value; used to penalize powerful actions')
-    parser.add_argument('--logit_threshold', default=0.5, type=float,
-                        help='threshold for logit to be considered as a high utility action')
-    parser.add_argument('--reg_weights', default='0,0,0', type=str, help='comma-separated string of weights for the model regularizer')
-    parser.add_argument('--beta', default=1, type=float,
-                        help='temperature for softmax')
-
-    # DRRN specific
-    parser.add_argument('--gamma', default=.9, type=float)
-    parser.add_argument('--learning_rate', default=0.0001, type=float)
-    parser.add_argument('--clip', default=5, type=float)
-    parser.add_argument('--embedding_dim', default=128, type=int)
-    parser.add_argument('--hidden_dim', default=128, type=int)
-    parser.add_argument('--lm_name', default='microsoft/deberta-v3-large', type=str)
-    parser.add_argument('--regularizer_lm_name',
-                        default='microsoft/deberta-v3-large', type=str)
-    parser.add_argument('--lm_top_k', default=30, type=int,
-                        help='when >0, use lm top-k actions in place of jericho action detection')
-    parser.add_argument('--lm_type', default='gpt', help='gpt | ngram')
-    parser.add_argument('--lm_path', default='gpt2')
-    parser.add_argument('--lm_dict', default='')
-    return parser.parse_args()
-
-def train(
-    agent,
-    envs,
-    max_steps,
-    update_freq,
-    eval_freq,
-    checkpoint_freq,
-    log_freq,
-    args,
-    lm=None
-):
+def train(agent, envs, args, lm=None):
     start = time.time()
-    
-    obs, rewards, dones, infos, transitions = [], [], [], [], []
+    # per‐env buffers of raw transitions (for passing into agent.observe)
+    transitions = [[] for _ in range(args.num_envs)]
     max_score = 0
 
-    # Initialize each environment
-    for env_i, env in enumerate(envs):
-        ob, info = env.reset(seed=args.seed)
-        obs.append(ob)
+    # initial reset
+    obs, rewards, dones, infos = [], [], [], []
+    for i, env in enumerate(envs):
+        o, info = env.reset(seed=args.seed)
+        obs.append(o)
         rewards.append(0)
         dones.append(False)
         infos.append(info)
-        transitions.append([])
 
-    # Convert raw text obs -> agent states
-    states = build_state(agent._tokenize, obs, infos)
+    # initial states & valid tokens
+    states    = build_state(agent._tokenize, obs, infos)
+    valid_ids = [[agent._tokenize(a) for a in info['game_state']['choice_texts']]
+                 for info in infos]
 
-    # print(obs, rewards, dones, infos, transitions)
-    # print(states)
-    
-    # Each environment must provide the valid actions in some form
-    valid_ids = [
-        [agent._tokenize(a) for a in info['game_state']['choice_texts']]
-        for info in infos
-    ]
+    for step in tqdm(range(1, args.max_steps + 1)):
 
-    for step in tqdm(range(1, max_steps + 1)):
-        # act
-        action_ids, action_idxs, _ = agent.act(
-            states, valid_ids, lm, args
-        )
-        action_strs = [info['game_state']['choice_texts'][idx]
-                       for info, idx in zip(infos, action_idxs)]
-
-        # step 
-        next_obs, next_rewards, next_dones, next_infos = [], [], [], []
-        for i, (env, action_str, action_idx) in enumerate(zip(envs, action_strs, action_idxs)):
-            ob, reward, done, info = env.step(action_idx)
-            if env.curr_points() >= max_score:  # new high score experienced
-                max_score = env.curr_points()
-                agent.memory.clear_alpha()
-            if done:
-                tb.logkv_mean('EpisodeScore', info['game_state']['points'])
-                if env.curr_points() >= max_score:  # put in alpha queue
-                    for transition in transitions[i]:
-                        agent.observe(transition, is_prior=True)
-                ob, info = env.reset(seed=args.seed)
-                #agent.reset(i)
-                next_obs, next_rewards, next_dones, next_infos = (next_obs + [ob],
-                                                                  next_rewards + [0],
-                                                                  next_dones + [False],
-                                                                  next_infos + [info])
-            else:
-                next_obs, next_rewards, next_dones, next_infos = (next_obs + [ob],
-                                                                  next_rewards + [reward],
-                                                                  next_dones + [done],
-                                                                  next_infos + [info])
-        rewards, dones, infos = next_rewards, next_dones, next_infos
-
-        # continue to log envs[0]
-        log('>> Action{}: {}'.format(step, action_strs[0]))
-        log("Reward{}: {}, Score {}, Num ach {}, Done {}\n".format(
-            step, rewards[0], infos[0]['game_state']['points'],
-            len(infos[0]['game_state']['unlocked_achievements']), dones[0]))
-
-        next_states = build_state(
-            agent._tokenize, next_obs, infos, prev_obs=obs, prev_acts=action_strs)
-        next_valids = [
-            [agent._tokenize(a) for a in info['game_state']['choice_texts']]
-            for info in infos
+        # 1) act
+        action_texts, action_idxs, _ = agent.act(states, valid_ids, lm, args)
+        # map idxs back to actual strings for logging & next step
+        action_strs = [
+            infos[i]['game_state']['choice_texts'][action_idxs[i]]
+            for i in range(args.num_envs)
         ]
-        for state, act, rew, next_state, valids, done, transition in zip(
-                states, action_ids, rewards, next_states, next_valids, dones, transitions):
-            if len(act) > 0:  # not [] (i.e. reset)
-                transition.append(Transition(state, act, rew, next_state, valids, done))
-                agent.observe(transition[-1])  # , is_prior=(rew != 0)
-        
-        # Advance
-        obs, states, valid_ids = next_obs, next_states, next_valids
 
-        if step % log_freq == 0:
+        # 2) step through each env
+        next_obs, next_rewards, next_dones, next_infos = [], [], [], []
+        for i, (env, act_idx) in enumerate(zip(envs, action_idxs)):
+            o2, r2, done2, info2 = env.step(act_idx)
+
+            # track high‐score and clear alpha‐memory if improved
+            if env.curr_points() >= max_score:
+                max_score = env.curr_points()
+                if hasattr(agent, 'memory'):
+                    agent.memory.clear_alpha()
+
+            # if done, log episodic score, and reset
+            if done2:
+                tb.logkv_mean('EpisodeScore', info2['game_state']['points'])
+                o2, info2 = env.reset(seed=args.seed)
+                next_rewards.append(r2)
+                next_dones.append(True)
+                next_obs.append(o2)
+                next_infos.append(info2)
+            else:
+                next_obs.append(o2)
+                next_rewards.append(r2)
+                next_dones.append(False)
+                next_infos.append(info2)
+
+        # 3) logging for env‐0
+        log(f">> Action{step}: {action_strs[0]}")
+        log(f"Reward{step}: {next_rewards[0]}, "
+            f"Score {infos[0]['game_state']['points']}, "
+            f"Ach {len(infos[0]['game_state']['unlocked_achievements'])}, "
+            f"Done {next_dones[0]}\n")
+
+        # 4) build next states & valids
+        next_states = build_state(agent._tokenize, next_obs, next_infos,
+                                  prev_obs=obs, prev_acts=action_strs)
+        next_valids = [[agent._tokenize(a) for a in info['game_state']['choice_texts']]
+                       for info in next_infos]
+
+        # 5) store transitions & call observe
+        for i in range(args.num_envs):
+            tr = Transition(
+                states[i],
+                action_texts[i],
+                next_rewards[i],
+                next_states[i],
+                next_valids[i],
+                next_dones[i]
+            )
+            transitions[i].append(tr)
+            agent.observe(tr)
+
+            # clear local buffer on done so we don't leak old transitions
+            if next_dones[i]:
+                transitions[i].clear()
+
+        # 6) advance
+        obs, states, valid_ids, infos = (
+            next_obs, next_states, next_valids, next_infos
+        )
+
+        # 7) periodic logging & update
+        if step % args.log_freq == 0:
             tb.logkv("FPS", round((step * args.num_envs) / (time.time() - start), 2))
             tb.logkv("Max score seen", max_score)
             tb.logkv("Step", step)
             tb.dumpkvs()
-        if step % update_freq == 0:
+
+        if step % args.update_freq == 0:
             agent.update()
-        if (step == 1 or step % checkpoint_freq == 0):
-            savedir = './checkpoints_utility/'
-            os.makedirs(savedir, exist_ok=True)
-            torch.save(
-                agent,
-                savedir + '{}_game{}.pt'.format(args.env, args.game)
-            )
-        del action_ids, action_idxs
+
+        if step % args.checkpoint_freq == 0:
+            os.makedirs(args.output_dir, exist_ok=True)
+            torch.save(agent, os.path.join(
+                args.output_dir,
+                f"{args.env}_game{args.game}_step{step}.pt"
+            ))
+
+        # free up GPU memory occasionally
         if step % 1000 == 0:
-             print("empty cache")
-             torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
 def main():
-    # Parse args
     args = parse_args()
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
+    configure_logger(args.output_dir, args.env,
+                     bool(args.tensorboard), bool(args.wandb), args)
 
-    # Configure logger
-    suffix = args.env
-    configure_logger(args.output_dir, suffix,
-                     args.tensorboard, args.wandb, args)
-
-    # Create environments
-    envs = []
+    # build environments
     if args.env.lower() == 'machiavelli':
-        game2beta = read_json('src/env/machiavelli/game2beta.json')
-        weights = [float(w) for w in args.reg_weights.split(',')]
-        if weights == [0, 0, 0]:
-            print("No regularization")
-            lm = None
-        else:
-            lm = PowerRegularizer(args.regularizer_lm_name, 'models/multi_deberta-v3-large_1e-05_32_3.pkl', args.reg_weights, utility_thresh=args.logit_threshold)
-
-        envs = [MachiavelliEnv(game=args.game,
-                        desired_achievements=None,
-                        )
+        read_json  # to ensure import
+        envs = [MachiavelliEnv(game=args.game, desired_achievements=None)
                 for _ in range(args.num_envs)]
         args.stats_dim = len(envs[0].player.user_vars)
+        lm = None
     else:
-        if args.games:
-            for g in args.games:
-                envs.append(BaseEnv(game=g, seed=args.seed))
-        else:
-            # Single custom environment with default
-            envs = [BaseEnv(game="BaseGame", seed=args.seed) for _ in range(args.num_envs)]
+        envs = [gym.make(args.env) for _ in range(args.num_envs)]
+        lm   = None
 
-    # Initialize the agent
-    # Possibly pass environment-specific dimensions
+    # initialize agent
     if args.agent_type == 'DRRN':
         agent = DRRNAgent(args)
     elif args.agent_type == 'PPO':
@@ -253,18 +206,7 @@ def main():
     else:
         agent = BaseAgent(args)
 
-    # Train
-    train(
-        agent=agent,
-        envs=envs,
-        max_steps=args.max_steps,
-        update_freq=args.update_freq,
-        eval_freq=args.eval_freq,
-        checkpoint_freq=args.checkpoint_freq,
-        log_freq=args.log_freq,
-        args=args,
-        lm=lm
-    )
+    train(agent, envs, args, lm)
 
 if __name__ == '__main__':
     main()
