@@ -68,7 +68,7 @@ def get_args():
 
 def main():
     args = get_args()
-    games = cfg.games_test
+    games = cfg.working_games
     for game in tqdm(games):
         try:
             if 'random' in args.agent_path.lower():
