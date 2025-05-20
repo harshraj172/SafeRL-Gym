@@ -1,6 +1,12 @@
+"""
+Generate trajectories for a given agent and environment.
+    Usage:
+        python generate_trajectories.py -a .drrn -t ./trajectories/<agent_name>
+"""
 import argparse
 from pathlib import Path
 from typing import List
+import traceback
 
 from tqdm import tqdm
 import torch
@@ -91,6 +97,7 @@ def main():
             )
         except Exception as e:
             print(f"Error running {game}: {e}")
+            traceback.print_exc()
             pass
 
 
