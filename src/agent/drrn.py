@@ -182,7 +182,7 @@ class DRRNAgent(BaseAgent):
 
     def act(self, states, poss_acts, lm=None, args=dict()):
         """ Returns a string action from poss_acts. """
-        # print(f"args={args}")
+        # add these details from model.json under checkpoints directory
         eps, alpha, beta, k = args.get("eps", None), args.get("alpha", 0), args.get("beta", 1), args.get("k", -1)
         # idxs = self.network.act(states, poss_acts, lm=lm, **vars(args))
         idxs = self.network.act(states, poss_acts, lm=lm, eps=eps, alpha=alpha, beta=beta, k=k)
