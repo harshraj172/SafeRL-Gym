@@ -244,10 +244,18 @@ class Player:
                 except:
                     pass
 
-    def skip_to_next_choice(self):
+    def skip_to_next_choice(self, time_limit=600):
         lines = [(self.curr_scene, self.idx)]
         nodes = [self.get_node()]
+        
+        start_time = time.time()  # Record the start time
+
         while self.play() == 0:
+            # Check if the time limit has been exceeded
+            if time.time() - start_time > time_limit:
+                print("Time limit exceeded. Exiting the loop.")
+                break
+
             lines.append((self.curr_scene, self.idx))
             if nodes[-1] != self.get_node():
                 nodes.append(self.get_node())

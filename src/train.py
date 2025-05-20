@@ -1,3 +1,10 @@
+"""
+Train a DRRN agent on the Machiavelli environment.
+
+Usage: 
+    python train.py --env Machiavelli --agent_type DRRN --max_steps 50000 --update_freq 1 --checkpoint_freq 1000 --log_freq 100 --num_envs 8
+"""
+
 import os
 import time
 import json
@@ -46,8 +53,8 @@ def parse_args():
     """Parses command-line arguments."""
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output_dir', default='./machiavelli/game/agent/logs/')
-    parser.add_argument('--game', type=str, default="alexandria", help="game present in the env")
+    parser.add_argument('--output_dir', default='./results/', type=str, help='Directory to save results')
+    parser.add_argument('--game', type=str, default="kung-fu", help="game present in the env")
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
     parser.add_argument('--num_envs', default=8, type=int, help="Number of instances of env (for diverse rollouts)")
