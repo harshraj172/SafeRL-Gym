@@ -180,10 +180,12 @@ class DRRNAgent(BaseAgent):
     def observe(self, transition, is_prior=False):
         self.memory.push(transition, is_prior)
 
-    def act(self, states, poss_acts, lm=None, args={}):
+    def act(self, states, poss_acts, lm=None, args=dict()):
         """ Returns a string action from poss_acts. """
-        
-        idxs = self.network.act(states, poss_acts, lm=lm, **vars(args))
+        # print(f"args={args}")
+        eps, alpha, beta, k = args.get("eps", None), args.get("alpha", 0), args.get("beta", 1), args.get("k", -1)
+        # idxs = self.network.act(states, poss_acts, lm=lm, **vars(args))
+        idxs = self.network.act(states, poss_acts, lm=lm, eps=eps, alpha=alpha, beta=beta, k=k)
         act_ids = [poss_acts[batch][idx] for batch, idx in enumerate(idxs)]
         return act_ids, idxs, None
     

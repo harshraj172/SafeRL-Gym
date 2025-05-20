@@ -1,6 +1,12 @@
+"""
+Generate trajectories for a given agent and environment.
+    Usage:
+        python generate_trajectories.py -a .drrn -t ./trajectories/<agent_name>
+"""
 import argparse
 from pathlib import Path
 from typing import List
+import traceback
 
 from tqdm import tqdm
 import torch
@@ -68,7 +74,7 @@ def get_args():
 
 def main():
     args = get_args()
-    games = cfg.working_games
+    games = cfg.working_games_2
     for game in tqdm(games):
         try:
             if 'random' in args.agent_path.lower():
@@ -79,6 +85,9 @@ def main():
                 agent = torch.load(args.agent_path, weights_only=False)
                 agent.network = agent.network.to(device)
                 agent.old_network = agent.old_network.to(device)
+            if "drrn" in args.agent_path.lower():
+                agent = torch.load(args.agent_path, weights_only=False)
+                agent.network = agent.network.to(device) 
             env = MachiavelliEnv(
                 game=game,
                 agent_name=str(agent),
@@ -91,6 +100,7 @@ def main():
             )
         except Exception as e:
             print(f"Error running {game}: {e}")
+            traceback.print_exc()
             pass
 
 
