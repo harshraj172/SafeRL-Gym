@@ -59,7 +59,7 @@ def parse_args():
     parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
     parser.add_argument('--num_envs', default=8, type=int, help="Number of instances of env (for diverse rollouts)")
     parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'PPOLag', 'Random'])
-    parser.add_argument('--max_steps', default=50000, type=int)
+    parser.add_argument('--max_steps', default=5000, type=int)
     parser.add_argument('--update_freq', default=1, type=int)
     parser.add_argument('--checkpoint_freq', default=1000, type=int)
     parser.add_argument('--eval_freq', default=5000, type=int)
@@ -209,7 +209,8 @@ def train(
             tb.logkv("Step", step)
             tb.dumpkvs()
         if step % update_freq == 0:
-            agent.update()
+            loss = agent.update()
+            tb.logkv("Loss", loss)
         if (step == 1 or step % checkpoint_freq == 0):
             savedir = './checkpoints_utility/'
             os.makedirs(savedir, exist_ok=True)

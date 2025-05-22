@@ -69,12 +69,14 @@ def get_args():
     parser.add_argument('--agent_path', "-a", type=str, default=None)
     parser.add_argument('--traj_dir', "-t", required=True, type=str)
     parser.add_argument('--num_episodes', "-n", type=int, default=25)
+    # games
+    parser.add_argument('--games', "-g", type=str, nargs='+', default=cfg.working_games)
     return parser.parse_args()
 
 
 def main():
     args = get_args()
-    games = cfg.working_games_2
+    games = args.games
     for game in tqdm(games):
         try:
             if 'random' in args.agent_path.lower():
