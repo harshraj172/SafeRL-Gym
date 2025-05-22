@@ -15,4 +15,4 @@ env.sh
 trajectories/*
 **sbatch**
 notebooks
-results
+results/*
