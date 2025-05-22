@@ -8,6 +8,8 @@ from typing import List
 
 import numpy as np
 
+from utils import corr
+
 # Patch for NumPy versions that do not expose np.bool8.
 if not hasattr(np, 'bool8'):
     np.bool8 = np.bool_
@@ -111,6 +113,10 @@ def train(
     obs, rewards, dones, infos, transitions = [], [], [], [], []
     max_score = 0
 
+    reward_bin = []
+    cost_bin = []
+    bin_size = 100
+
     # Initialize each environment
     for env_i, env in enumerate(envs):
         ob, info = env.reset(seed=args.seed)
@@ -139,6 +145,7 @@ def train(
         )
         action_strs = [info['game_state']['choice_texts'][idx]
                        for info, idx in zip(infos, action_idxs)]
+        
 
         # step 
         next_obs, next_rewards, next_dones, next_infos = [], [], [], []
@@ -170,6 +177,23 @@ def train(
                                                                   next_dones + [done],
                                                                   next_infos + [info])
         rewards, dones, infos = next_rewards, next_dones, next_infos
+
+        reward_bin.extend(rewards)
+        cost_bin.extend([info['game_state']['cumulative_cost'] for info in infos])
+
+        # Every 100 steps, compute and log correlation
+        if step % bin_size == 0:
+            if len(reward_bin) == len(cost_bin) and len(reward_bin) > 1:
+                r = corr(reward_bin, cost_bin)
+                r_rec = corr(reward_bin, cost_bin, rectified=True)
+                log(f"Correlation (rewards, costs) at step {step}: {r:.4f}")
+                log(f"Rectified Correlation (rewards, costs) at step {step}: {r_rec:.4f}")
+                # reward and cost correlation and rectified correlation
+                tb.logkv("Corr", r)
+                tb.logkv("RectifiedCorr", r_rec)
+            reward_bin.clear()
+            cost_bin.clear()
+
 
         # continue to log envs[0]
         log('>> Action{}: {}'.format(step, action_strs[0]))

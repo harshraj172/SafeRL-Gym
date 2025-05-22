@@ -1,7 +1,7 @@
 *.zip
 game_data
 experiments/trajectories
-__pycache__/
+**/__pycache__/
 *.pyc
 checkpoints*
 model/*
@@ -15,3 +15,4 @@ env.sh
 trajectories/*
 **sbatch**
 notebooks
+results
