@@ -116,7 +116,6 @@ class DRRN(torch.nn.Module):
                           for q_value, bert_value in zip(q_values, lm_values)]
         else:
             act_values = q_values
-
         if eps is None:  # sample ~ softmax(act_values)
             act_idxs = [torch.multinomial(
                 F.softmax(vals / beta, dim=0), num_samples=1).item() for vals in act_values]
@@ -183,9 +182,12 @@ class DRRNAgent(BaseAgent):
     def act(self, states, poss_acts, lm=None, args=dict()):
         """ Returns a string action from poss_acts. """
         # add these details from model.json under checkpoints directory
-        eps, alpha, beta, k = args.get("eps", None), args.get("alpha", 0), args.get("beta", 1), args.get("k", -1)
-        # idxs = self.network.act(states, poss_acts, lm=lm, **vars(args))
-        idxs = self.network.act(states, poss_acts, lm=lm, eps=eps, alpha=alpha, beta=beta, k=k)
+        if type(args) == dict:
+            eps, alpha, beta, k = args.get("eps", None), args.get("alpha", 0), args.get("beta", 1), args.get("k", -1)
+            # idxs = self.network.act(states, poss_acts, lm=lm, **vars(args))
+            idxs = self.network.act(states, poss_acts, lm=lm, eps=eps, alpha=alpha, beta=beta, k=k)
+        else:
+            idxs = self.network.act(states, poss_acts, lm=lm, eps=args.eps, alpha=args.alpha, beta=args.beta)
         act_ids = [poss_acts[batch][idx] for batch, idx in enumerate(idxs)]
         return act_ids, idxs, None
     

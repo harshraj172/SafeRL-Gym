@@ -23,10 +23,19 @@ def batch_encoded_tokens(x):
         'attention_mask': torch.nested.to_padded_tensor(torch.nested.nested_tensor([n['attention_mask'].squeeze() for n in x]), 0)
     }
 
+def layer_init(layer, std=1, bias_const=0.0):
+    torch.nn.init.normal_(layer.weight, mean=0.0, std=std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
 class PPONetwork(nn.Module):
     def __init__(self, lm_name, stats_dim, hidden_dim):
         super().__init__()
         self.embedding = AutoModel.from_pretrained(lm_name).to(device)
+        # freeze the embedding layer
+        for param in self.embedding.parameters():
+            param.requires_grad = False
+        self.embedding.eval()
         self.stats_dim = stats_dim
         embedding_dim = self.embedding.config.hidden_size
         initializer_range = self.embedding.config.initializer_range  # Get from LM config
@@ -36,11 +45,31 @@ class PPONetwork(nn.Module):
         
         # Policy head takes both state and action embeddings
         self.policy_head = nn.Linear(hidden_dim + embedding_dim, 1)
+        
+        
         self.value_head = nn.Linear(hidden_dim, 1)
         
+        
+        
+        # for layer in self.policy_head:
+        #     if isinstance(layer, nn.Linear):
+        #         layer_init(layer)
+        # for layer in self.value_head:
+        #     if isinstance(layer, nn.Linear):
+        #         layer_init(layer)
+
         # Initialize value head weights with normal distribution
-        self.value_head.weight.data.normal_(mean=0.0, std=initializer_range)
+        self.value_head.weight.data.normal_(mean=0.0, std=0.02)
         self.value_head.bias.data.zero_()
+        # for layer in self.policy_head:
+        #     if isinstance(layer, nn.Linear):
+        #         layer_init(layer, std=1)
+
+        # for layer in self.value_head:
+        #     if isinstance(layer, nn.Linear):
+        #         layer_init(layer, std=0.02)
+        self.policy_head.weight.data.normal_(mean=0.0, std=1)
+        self.policy_head.bias.data.zero_()
 
     def forward(self, states, actions=None):
         """Forward pass handling both state and action encoding"""
@@ -58,7 +87,7 @@ class PPONetwork(nn.Module):
         # Get state embeddings from transformer
         obs_emb = self.embedding(**obs_encodings)['last_hidden_state'][:, 0, :]  # CLS token
         desc_emb = self.embedding(**desc_encodings)['last_hidden_state'][:, 0, :]
-        
+    
         # Combine state features
         state_features = F.relu(self.hidden(torch.cat([
             obs_emb, desc_emb, inventory_tensors
@@ -79,20 +108,18 @@ class PPONetwork(nn.Module):
         act_encodings = batch_encoded_tokens(flat_actions)
         # Get action embeddings from transformer
         act_emb = self.embedding(**act_encodings)['last_hidden_state'][:, 0, :]
-        
         # Expand states to match flattened actions
         expanded_states = torch.cat([state_features[i].repeat(size, 1) 
                                    for i, size in enumerate(act_sizes)], dim=0)
-        
         # Get action scores
         action_scores = self.policy_head(torch.cat([expanded_states, act_emb], dim=1)).squeeze(-1)
-        
+
         # Split scores back into lists per batch element
         action_scores = action_scores.split(act_sizes)
-        
         return action_scores, value
 
     @torch.no_grad()
+    # TODO: for a trained policy maybe we should take argmax?
     def act(self, states, poss_acts, lm=None, **kwargs):
         """Get action scores and sample from policy"""
         action_scores, values = self.forward(states, poss_acts)
@@ -101,8 +128,8 @@ class PPONetwork(nn.Module):
         action_probs = [F.softmax(scores, dim=0) for scores in action_scores]
         distributions = [Categorical(probs) for probs in action_probs]
         actions = [dist.sample() for dist in distributions]
-        log_probs = [dist.log_prob(act) for dist, act in zip(distributions, actions)]
         
+        log_probs = [dist.log_prob(act) for dist, act in zip(distributions, actions)]
         return actions, log_probs, values
 
 # Define a PPO-specific transition tuple
@@ -120,17 +147,17 @@ class PPOAgent(BaseAgent):
         
         # PPO specific parameters
         self.clip_epsilon = 0.2
-        self.entropy_coef = 0.01
+        self.entropy_coef = 0.001
         self.gamma = args.gamma
         self.gae_lambda = 0.95
         self.ppo_epochs = 4
-        self.max_segment_length = 32
+        self.max_segment_length = 256 # 64 for unfrozen
         
         self.optimizer = optim.Adam(self.network.parameters(), lr=args.learning_rate)
         
         # Store transitions for each environment
         self.transitions = [[] for _ in range(args.num_envs)]
-        self.completed_episodes = []
+        self.completed_episodes = [[]]
 
     def _tokenize(self, text):
         encoding = self.tokenizer(
@@ -185,11 +212,11 @@ class PPOAgent(BaseAgent):
         
         # Store the transition
         self.transitions[env_idx].append(ppo_transition)
+        self.completed_episodes[-1].append(ppo_transition)
         
         # If we reach a done state or max segment length, complete the episode
         if transition.done or len(self.transitions[env_idx]) >= self.max_segment_length:
-            if not any(t.action is None for t in self.transitions[env_idx]):
-                self.completed_episodes.append(self.transitions[env_idx])
+            self.completed_episodes.append([])
             self.transitions[env_idx] = []
 
     def _compute_truncated_advantages(self, episode, is_terminal):
@@ -281,6 +308,8 @@ class PPOAgent(BaseAgent):
         # Now process all completed episodes
         for episode in self.completed_episodes:
             # Compute advantages for this episode if not already done
+            if len(episode) == 0:
+                continue
             if episode[0].advantage is None:
                 self._compute_truncated_advantages(episode, episode[-1].done)
             
@@ -301,29 +330,39 @@ class PPOAgent(BaseAgent):
                 
                 # Calculate ratios and surrogate losses
                 ratios = torch.exp(new_log_probs - old_log_probs)
-                surr1 = ratios * advantages
-                surr2 = torch.clamp(ratios, 1-self.clip_epsilon, 1+self.clip_epsilon) * advantages
+                pg_loss1 = -advantages * ratios
+                pg_loss2 = -advantages * torch.clamp(ratios, 1-self.clip_epsilon, 1+self.clip_epsilon)
+                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
                 
                 # PPO policy and value losses
-                policy_loss = -torch.min(surr1, surr2).mean()
-                value_loss = F.mse_loss(values.squeeze(), returns)
+                # v_loss_unclipped = (values.squeeze() - returns)**2
+                # v_clipped = b_values + torch.clamp(
+                #         values - b_values,
+                #         -self.clip_epsilon,
+                #         self.clip_epsilon,
+                # )
+                # v_loss_clipped = (v_clipped - returns) ** 2
+                # v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                
+                # v_loss = 0.5 * v_loss_max.mean()
+                v_loss = 0.5 * F.mse_loss(values.squeeze(), returns)
                 entropy_loss = -self.entropy_coef * entropy
-                loss = policy_loss + 0.5 * value_loss + entropy_loss
+                loss = pg_loss + v_loss + entropy_loss
                 
                 # Update network
                 self.optimizer.zero_grad()
                 loss.backward()
-                # torch.nn.utils.clip_grad_norm_(self.network.parameters(), 0.5)
+                torch.nn.utils.clip_grad_norm_(self.network.parameters(), 0.5)
                 self.optimizer.step()
-                total_loss += loss.item()
+                total_loss += pg_loss.item()
         
 
         # Update old network
         self.old_network.load_state_dict(self.network.state_dict())
         
         # Clear completed episodes
-        self.completed_episodes = []
-        
+        self.completed_episodes = [[]]
         return total_loss
 
 class PPOLagAgent(PPOAgent):
@@ -344,6 +383,8 @@ class PPOLagAgent(PPOAgent):
         # Now process all completed episodes
         for episode in self.completed_episodes:
             # Compute advantages for this episode if not already done
+            if len(episode) == 0:
+                continue
             if episode[0].advantage is None:
                 self._compute_truncated_advantages(episode, episode[-1].done)
             
@@ -365,7 +406,7 @@ class PPOLagAgent(PPOAgent):
                 
                 # Calculate ratios and surrogate losses
                 ratios = torch.exp(new_log_probs - old_log_probs)
-                advantages = advantages - self.lagrange_multiplier.detach() * cost_returns.mean()
+                advantages = advantages
                 surr1 = ratios * advantages
                 surr2 = torch.clamp(ratios, 1-self.clip_epsilon, 1+self.clip_epsilon) * advantages
                 
@@ -374,14 +415,14 @@ class PPOLagAgent(PPOAgent):
                 value_loss = F.mse_loss(values.squeeze(), returns)
                 entropy_loss = -self.entropy_coef * entropy
                 
-                loss = policy_loss + 0.5 * value_loss + entropy_loss
+                loss = (policy_loss - self.lagrange_multiplier.detach() * cost_returns.mean()) + 0.5 * value_loss + entropy_loss
                 
                 # Update network
                 self.optimizer.zero_grad()
                 loss.backward()
-                # torch.nn.utils.clip_grad_norm_(self.network.parameters(), 0.5)
+                torch.nn.utils.clip_grad_norm_(self.network.parameters(), 0.5)
                 self.optimizer.step()
-                total_loss += loss.item()
+                total_loss += policy_loss.item()
                 # Update Lagrange multiplier to maximize the loss
             
                 self.lagrange_optimizer.zero_grad()
