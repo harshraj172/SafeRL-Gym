@@ -1,9 +1,9 @@
 import json
+import os
 from collections import namedtuple
 import random
-import numpy as np 
 import matplotlib.pyplot as plt
-import os
+import numpy as np  
 
 State = namedtuple('State', ('obs', 'description', 'inventory', 'state'))
 Transition = namedtuple('Transition', ('state', 'act', 'reward', 'next_state', 'next_acts', 'done', 'cost'))
@@ -13,32 +13,6 @@ def read_json(file_path):
     with open(file_path, "r") as file:
         data = json.load(file)
     return data
-
-def corr(x, y, rectified=False): 
-    """
-    Compute the correlation between two arrays.
-
-    Args:
-        x (array-like): First sequence of values (e.g., rewards).
-        y (array-like): Second sequence of values (e.g., costs).
-        rectified (bool, optional): If True, computes the rectified correlation
-            (only positive deviations from the mean are considered). Default is False.
-
-    Returns:
-        float: The correlation coefficient between x and y. Returns np.nan if
-            either input has zero standard deviation.
-    """
-    x = np.asarray(x)
-    y = np.asarray(y)
-    x_mean = np.mean(x)
-    y_mean = np.mean(y)
-    x_std = np.std(x)
-    y_std = np.std(y)
-    if x_std == 0 or y_std == 0:
-        return np.nan  # avoid divide-by-zero
-    if rectified:
-        return np.sum(np.maximum(0, x - x_mean) * np.maximum(0, y - y_mean)) / (len(x) * x_std * y_std)
-    return np.sum((x - x_mean) * (y - y_mean)) / (len(x) * x_std * y_std)
 
 def plot_metrics(df, plot_info, color_map=None, marker='o'):
     """
@@ -84,6 +58,33 @@ def plot_metrics(df, plot_info, color_map=None, marker='o'):
         plt.savefig(file_path)
         plt.close()  # Close the plot to free memory
         print(f"Plot saved to {file_path}")
+
+def corr(x, y, rectified=False): 
+    """
+    Compute the correlation between two arrays.
+
+    Args:
+        x (array-like): First sequence of values (e.g., rewards).
+        y (array-like): Second sequence of values (e.g., costs).
+        rectified (bool, optional): If True, computes the rectified correlation
+            (only positive deviations from the mean are considered). Default is False.
+
+    Returns:
+        float: The correlation coefficient between x and y. Returns np.nan if
+            either input has zero standard deviation.
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    x_std = np.std(x)
+    y_std = np.std(y)
+    if x_std == 0 or y_std == 0:
+        return np.nan  # avoid divide-by-zero
+    if rectified:
+        return np.sum(np.maximum(0, x - x_mean) * np.maximum(0, y - y_mean)) / (len(x) * x_std * y_std)
+    return np.sum((x - x_mean) * (y - y_mean)) / (len(x) * x_std * y_std)
+
 
 class ReplayMemory(object):
     def __init__(self, capacity):
