@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from agent.base import BaseAgent
+from src.agent.base import BaseAgent
 
 
 class ActorNetwork(nn.Module):
@@ -14,12 +14,13 @@ class ActorNetwork(nn.Module):
         # Returns log-probs for each action given the state
         batch_size = len(actions)
         states = [state] * batch_size
-        state_tokens = self.tokenizer(states, return_tensors="pt", padding=True).to(
-            device
-        )
+        state_tokens = self.tokenizer(states, return_tensors="pt", padding=True)
         action_tokens = self.tokenizer(
             actions, return_tensors="pt", padding="longest", padding_side="right"
-        ).to(device)
+        )
+        # Move all tensors to device
+        state_tokens = {k: v.to(device) for k, v in state_tokens.items()}
+        action_tokens = {k: v.to(device) for k, v in action_tokens.items()}
         action_tokens["input_ids"] = action_tokens["input_ids"][:, 1:]  # Remove BOS
         action_tokens["input_ids"] = torch.cat(
             (
@@ -29,7 +30,7 @@ class ActorNetwork(nn.Module):
             dim=1,
         )
         tokenized_length = action_tokens["attention_mask"].sum(dim=1)
-        action_tokens["input_ids"][torch.arange(batch_size), tokenized_length - 1] = (
+        action_tokens["input_ids"][torch.arange(batch_size, device=device), tokenized_length - 1] = (
             1  # EOS
         )
 
@@ -55,7 +56,7 @@ class ActorNetwork(nn.Module):
         next_token_logits = logits[:, k - 1 : -1, :]
         next_token_logprobs = F.log_softmax(next_token_logits, dim=-1)
         action_token_logprobs_ = next_token_logprobs[
-            :, torch.arange(m), action_tokens["input_ids"][0]   # might be bug if batch_size > 1
+            :, torch.arange(m, device=device), action_tokens["input_ids"][0].to(device=device, dtype=torch.long)
         ]
         action_token_logprobs = action_token_logprobs_ * action_tokens["attention_mask"]
         return action_token_logprobs.sum(dim=-1)
@@ -133,6 +134,7 @@ class PPOLLMAgent(BaseAgent):
             params,
             lr=kwargs.get("learning_rate", 1e-5),
         )
+        self.trajectories = []
 
     def choose_action(self, state, logprob_flag=False, return_idx=False):
         """
@@ -176,6 +178,7 @@ class PPOLLMAgent(BaseAgent):
             state = next_state if not done else self.env.reset()
             if isinstance(state, tuple):
                 state = state[0]
+        self.trajectories = trajectories
         return trajectories
 
     def compute_gaes(self, trajectories, returns_flag=False):
@@ -204,11 +207,16 @@ class PPOLLMAgent(BaseAgent):
         else:
             return gaes_tensor
 
-    def update(self, trajectories):
+    def update(self, trajectories=None):
         """
         Performs a PPO update using the collected trajectories.
         Computes policy loss and value loss, then optimizes.
         """
+        if trajectories is None:
+            trajectories = self.trajectories
+        if not trajectories:
+            print("Warning: No trajectories to update on.")
+            return 0.0
         gaes, returns = self.compute_gaes(trajectories, returns_flag=True)
         gaes = gaes.to(self.device)
         returns = returns.to(self.device)
@@ -216,19 +224,37 @@ class PPOLLMAgent(BaseAgent):
         actions = [t[1] for t in trajectories]
         old_logprobs = torch.tensor([t[5] for t in trajectories], dtype=torch.float32, device=self.device)
         actions_per_state = [t[6] for t in trajectories]
-        actions_idx = [acts.index(a) for acts, a in zip(actions_per_state, actions)]
-        # Policy loss
+        actions_idx = []
+        filtered_states = []
+        filtered_actions_per_state = []
+        filtered_old_logprobs = []
+        for s, acts, a, old_lp in zip(states, actions_per_state, actions, old_logprobs):
+            try:
+                idx = acts.index(a)
+                actions_idx.append(idx)
+                filtered_states.append(s)
+                filtered_actions_per_state.append(acts)
+                filtered_old_logprobs.append(old_lp)
+            except ValueError:
+                print(f"Warning: action '{a}' not found in available actions {acts}. Skipping.")
+                continue
+        if not actions_idx:
+            print("Warning: No valid actions found for update.")
+            return 0.0
         logprobs = torch.stack([
             self.actor.create_distribution(s, acts, self.device).log_prob(torch.tensor(a_idx, device=self.device))
-            for s, acts, a_idx in zip(states, actions_per_state, actions_idx)
+            for s, acts, a_idx in zip(filtered_states, filtered_actions_per_state, actions_idx)
         ])
-        ratio = torch.exp(logprobs - old_logprobs)
-        surrogate1 = ratio * gaes
-        surrogate2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * gaes
+        filtered_gaes = gaes[:len(logprobs)]
+        filtered_returns = returns[:len(logprobs)]
+        filtered_old_logprobs = torch.stack(filtered_old_logprobs)
+        ratio = torch.exp(logprobs - filtered_old_logprobs)
+        surrogate1 = ratio * filtered_gaes
+        surrogate2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * filtered_gaes
         policy_loss = -torch.min(surrogate1, surrogate2).mean()
         # Value loss
-        values = torch.stack([self.critic(s, self.device) for s in states])
-        value_loss = F.mse_loss(values, returns)
+        values = torch.stack([self.critic(s, self.device) for s in filtered_states])
+        value_loss = F.mse_loss(values, filtered_returns)
         # Optimize
         loss = policy_loss + value_loss
         self.optimizer.zero_grad()

@@ -6,7 +6,7 @@
 import torch
 import pytest
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
-from src.agent.ppo_llm import ActorNetwork, CriticNetwork, PPOAgent
+from src.agent.ppo_llm import ActorNetwork, CriticNetwork, PPOLLMAgent
 from src.env.machiavelli.machiavelli_env import MachiavelliEnv
 
 
@@ -81,7 +81,7 @@ def test_ppoagent_choose_action_machiavelli(gemma_resources, machiavelli_env):
     device, tokenizer, model, config = gemma_resources
     actor = ActorNetwork(model, tokenizer)
     critic = CriticNetwork(model, tokenizer, config.hidden_size)
-    agent = PPOAgent(machiavelli_env, actor, critic, device)
+    agent = PPOLLMAgent(machiavelli_env, actor, critic, device)
     state, _ = machiavelli_env.reset()
     action, logprob = agent.choose_action(state, logprob_flag=True)
     assert isinstance(action, str) or isinstance(action, int)
@@ -91,7 +91,7 @@ def test_ppoagent_collect_trajectories_machiavelli(gemma_resources, machiavelli_
     device, tokenizer, model, config = gemma_resources
     actor = ActorNetwork(model, tokenizer)
     critic = CriticNetwork(model, tokenizer, config.hidden_size)
-    agent = PPOAgent(machiavelli_env, actor, critic, device)
+    agent = PPOLLMAgent(machiavelli_env, actor, critic, device)
     batch_size = 3
     trajectories = agent.collect_trajectories(batch_size)
     assert len(trajectories) == batch_size
@@ -108,7 +108,7 @@ def test_ppoagent_compute_gaes_machiavelli(gemma_resources, machiavelli_env):
     device, tokenizer, model, config = gemma_resources
     actor = ActorNetwork(model, tokenizer)
     critic = CriticNetwork(model, tokenizer, config.hidden_size)
-    agent = PPOAgent(machiavelli_env, actor, critic, device)
+    agent = PPOLLMAgent(machiavelli_env, actor, critic, device)
     batch_size = 3
     trajectories = agent.collect_trajectories(batch_size)
     gaes, returns = agent.compute_gaes(trajectories, returns_flag=True)
@@ -119,7 +119,7 @@ def test_ppoagent_update_machiavelli(gemma_resources, machiavelli_env):
     device, tokenizer, model, config = gemma_resources
     actor = ActorNetwork(model, tokenizer)
     critic = CriticNetwork(model, tokenizer, config.hidden_size)
-    agent = PPOAgent(machiavelli_env, actor, critic, device)
+    agent = PPOLLMAgent(machiavelli_env, actor, critic, device)
     batch_size = 3
     trajectories = agent.collect_trajectories(batch_size)
     loss = agent.update(trajectories)
