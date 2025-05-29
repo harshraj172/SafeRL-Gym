@@ -3,22 +3,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 from src.agent.base import BaseAgent
 
-
 class ActorNetwork(nn.Module):
     def __init__(self, model, tokenizer):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
+    
+    def _set_device(self, device):
+        self.model = self.model.to(device)
 
     def forward(self, state: str, actions: list[str], device, requires_grad=False):
-        # Returns log-probs for each action given the state
+        self._set_device(device)
+        assert self.model.device == device, f"Actor network device {self.model.device} does not match expected device {device}"
         batch_size = len(actions)
         states = [state] * batch_size
         state_tokens = self.tokenizer(states, return_tensors="pt", padding=True)
         action_tokens = self.tokenizer(
             actions, return_tensors="pt", padding="longest", padding_side="right"
         )
-        # Move all tensors to device
         state_tokens = {k: v.to(device) for k, v in state_tokens.items()}
         action_tokens = {k: v.to(device) for k, v in action_tokens.items()}
         action_tokens["input_ids"] = action_tokens["input_ids"][:, 1:]  # Remove BOS
@@ -49,14 +51,27 @@ class ActorNetwork(nn.Module):
         else:
             with torch.no_grad():
                 outputs = self.model(**inputs)
-        logits = outputs.logits
+        # Handle different model output types
+        if hasattr(outputs, 'logits'):
+            logits = outputs.logits
+        elif hasattr(outputs, 'last_hidden_state'):
+            # Add a linear head if not present
+            if not hasattr(self, 'lm_head'):
+                hidden_size = outputs.last_hidden_state.shape[-1]
+                self.lm_head = nn.Linear(hidden_size, self.tokenizer.vocab_size).to(device)
+            logits = self.lm_head(outputs.last_hidden_state)
+        else:
+            raise AttributeError("Model output does not have 'logits' or 'last_hidden_state'.")
         logits = torch.clamp(logits, min=-100, max=100)
         k = state_tokens["input_ids"].shape[1]
         m = action_tokens["input_ids"].shape[1]
         next_token_logits = logits[:, k - 1 : -1, :]
         next_token_logprobs = F.log_softmax(next_token_logits, dim=-1)
+        action_token_indices = action_tokens["input_ids"].to(device=device, dtype=torch.long)
+        batch_indices = torch.arange(action_token_indices.shape[0], device=device)
+        token_indices = torch.arange(m, device=device)
         action_token_logprobs_ = next_token_logprobs[
-            :, torch.arange(m, device=device), action_tokens["input_ids"][0].to(device=device, dtype=torch.long)
+            batch_indices.unsqueeze(1), token_indices.unsqueeze(0), action_token_indices
         ]
         action_token_logprobs = action_token_logprobs_ * action_tokens["attention_mask"]
         return action_token_logprobs.sum(dim=-1)
@@ -96,14 +111,19 @@ class CriticNetwork(nn.Module):
             nn.Sigmoid(), 
         )
 
+    def _set_device(self, device): 
+        self.model = self.model.to(device)
+        self.simple_nn = self.simple_nn.to(device)
+
     def forward(self, state: str, device):
+        self._set_device(device)
+        assert self.model.device == device, f"Model device {self.model.device} does not match expected device {device}"
         inputs = self.tokenizer(state, return_tensors="pt").to(device)
         with torch.no_grad():
             outputs = self.model(**inputs, output_hidden_states=True)
         # FOR TESTING ONLY: Use the first token's embedding from layer 1
         hidden_states = outputs.hidden_states[1][:, 0, :].to(device)  # shape: [batch, hidden_size]
         # hidden_states = outputs.hidden_states[1].to(device)  # shape: [batch, hidden_size]
-        self.simple_nn = self.simple_nn.to(device)
         x = self.simple_nn(hidden_states)
         return x.squeeze()
 
@@ -125,6 +145,8 @@ class PPOLLMAgent(BaseAgent):
         self.actor = actor
         self.critic = critic
         self.device = device
+        if torch.cuda.is_available():
+            assert 'cuda' in str(self.device), f"Device should be CUDA, got {self.device}"
         self.gamma = kwargs.get("gamma", 0.99)
         self.clip_epsilon = kwargs.get("clip_epsilon", 0.1)
         self.lambda_gae = kwargs.get("lambda_gae", 0.95)
@@ -145,7 +167,7 @@ class PPOLLMAgent(BaseAgent):
         info = self.env._get_info()
         actions = info['game_state']['choice_texts']
         dist = self.actor.create_distribution(state, actions, self.device)
-        action_idx = dist.sample().to(self.device).item()
+        action_idx = dist.sample().item()
         action = actions[action_idx]
         logprob = dist.log_prob(torch.tensor(action_idx, device=self.device)).item()
         if return_idx:
