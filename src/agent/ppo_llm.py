@@ -107,10 +107,10 @@ class CriticNetwork(nn.Module):
         return x.squeeze()
 
 
-class PPOAgent(BaseAgent):
+class PPOLLMAgent(BaseAgent):
     def __init__(self, env, actor, critic, device, args=None, **kwargs):
         """
-        PPOAgent for Machiavelli environment, inheriting from BaseAgent.
+        PPOLLMAgent for Machiavelli environment, inheriting from BaseAgent.
         - env: Machiavelli environment instance
         - actor: ActorNetwork
         - critic: CriticNetwork
