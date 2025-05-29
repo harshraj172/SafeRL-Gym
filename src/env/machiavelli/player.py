@@ -6,7 +6,7 @@ import time
 import numpy as np
 from collections import defaultdict
 
-from env.machiavelli.utils import get_conditional_group, get_nested_group, \
+from src.env.machiavelli.utils import get_conditional_group, get_nested_group, \
                        make_lowercase, make_underscore, split_into_params, \
                        load_game_data, load_game_tree
 
