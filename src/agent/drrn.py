@@ -8,9 +8,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
 
-from agent.base import BaseAgent
-from env.machiavelli.utils import clean
-from utils import ReplayMemory, PrioritizedReplayMemory, Transition, State
+from src.agent.base import BaseAgent
+from src.env.machiavelli.utils import clean
+from src.utils import ReplayMemory, PrioritizedReplayMemory, Transition, State
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
