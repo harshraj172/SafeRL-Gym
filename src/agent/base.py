@@ -1,8 +1,8 @@
 import torch
 from transformers import AutoTokenizer
 
-from utils import ReplayMemory, PrioritizedReplayMemory, Transition, State
-from env.machiavelli.utils import clean
+from src.utils import ReplayMemory, PrioritizedReplayMemory, Transition, State
+from src.env.machiavelli.utils import clean
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
