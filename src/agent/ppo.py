@@ -6,10 +6,10 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.distributions import Categorical
 from transformers import AutoTokenizer, AutoModel
-from agent.base import BaseAgent
+from src.agent.base import BaseAgent
 import copy
 from collections import namedtuple
-from env.machiavelli.utils import clean
+from src.env.machiavelli.utils import clean
 import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

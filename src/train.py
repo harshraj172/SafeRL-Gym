@@ -1,8 +1,13 @@
 """
 Train a DRRN agent on the Machiavelli environment.
 
-Usage: 
-    python train.py --env Machiavelli --agent_type DRRN --max_steps 50000 --update_freq 1 --checkpoint_freq 1000 --log_freq 100 --num_envs 8
+USAGE: 
+    
+    DRRN: 
+    python -m src.train --max_steps 10000 --game kung-fu --agent_type DRRN --output_dir ./results/Machiavelli/DRRN/microsoft_deberta-v3-xsmall/kung-fu
+
+    PPO LLM: 
+    python -m src.train --max_steps 1000 --game kung-fu --agent_type PPO_LLM --lm_name google/gemma-3-1b-it --output_dir ./results/Machiavelli/PPO_LLM/google_gemma-3-1b-it/kung-fu
 """
 
 import os
@@ -23,12 +28,13 @@ import torch
 import gym
 
 from tqdm.auto import tqdm
-from agent.base import BaseAgent
-from agent.drrn import DRRNAgent 
-from agent.ppo import PPOAgent, PPOLagAgent
-from env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
-import logger
-from utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
+from src.agent.base import BaseAgent
+from src.agent.drrn import DRRNAgent 
+from src.agent.ppo import PPOAgent, PPOLagAgent
+from src.agent.ppo_llm import PPOLLMAgent, ActorNetwork, CriticNetwork
+from src.env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
+from src import logger
+from src.utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
 
 logging.getLogger().setLevel(logging.CRITICAL)
 
@@ -58,7 +64,7 @@ def parse_args():
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
     parser.add_argument('--num_envs', default=8, type=int, help="Number of instances of env (for diverse rollouts)")
-    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'PPOLag', 'Random'])
+    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'PPO_LLM', 'PPOLag', 'Random'])
     parser.add_argument('--max_steps', default=5000, type=int)
     parser.add_argument('--update_freq', default=1, type=int)
     parser.add_argument('--checkpoint_freq', default=1000, type=int)
@@ -209,15 +215,23 @@ def train(
             tb.logkv("Step", step)
             tb.dumpkvs()
         if step % update_freq == 0:
+            # For PPO_LLM, collect trajectories before update
+            if args.agent_type == 'PPO_LLM' and hasattr(agent, 'collect_trajectories'):
+                agent.collect_trajectories(args.batch_size)
             loss = agent.update()
             tb.logkv("Loss", loss)
         if (step == 1 or step % checkpoint_freq == 0):
             savedir = './checkpoints_utility/'
             os.makedirs(savedir, exist_ok=True)
-            torch.save(
-                agent,
-                savedir + '{}_{}_{}_game{}.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game)
-            )
+            if args.agent_type == 'PPO_LLM':
+                # Save only model weights for PPO_LLM
+                torch.save(agent.actor.state_dict(), savedir + '{}_{}_{}_game{}_actor.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game))
+                torch.save(agent.critic.state_dict(), savedir + '{}_{}_{}_game{}_critic.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game))
+            else:
+                torch.save(
+                    agent,
+                    savedir + '{}_{}_{}_game{}.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game)
+                )
             # save args as json
             with open(savedir + '{}_{}_{}_game{}.json'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game), 'w') as f:
                 json.dump(vars(args), f, indent=4)
@@ -274,6 +288,16 @@ def main():
         agent = PPOAgent(args)
     elif args.agent_type == 'PPOLag':
         agent = PPOLagAgent(args)
+    elif args.agent_type == 'PPO_LLM':
+        from transformers import AutoModel, AutoTokenizer
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        assert device.type == 'cuda', "PPO_LLM requires a GPU for training."
+        model_actor = AutoModel.from_pretrained(args.lm_name).to(device)
+        model_critic = AutoModel.from_pretrained(args.lm_name).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(args.lm_name)
+        actor = ActorNetwork(model_actor, tokenizer)
+        critic = CriticNetwork(model_critic, tokenizer, input_dim=model_actor.config.hidden_size)
+        agent = PPOLLMAgent(envs[0], actor, critic, device, args=args)
     else:
         agent = BaseAgent(args)
 

@@ -11,10 +11,10 @@ import torch
 import gym
 import numpy as np
 
-from env.machiavelli.player import Player
-from env.machiavelli.utils import load_game_tree, random_seed
-from env.machiavelli.config import MachiavelliConfig
-from utils import State
+from src.env.machiavelli.player import Player
+from src.env.machiavelli.utils import load_game_tree, random_seed
+from src.env.machiavelli.config import MachiavelliConfig
+from src.utils import State
 cfg = MachiavelliConfig()
 
 

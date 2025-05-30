@@ -1,9 +1,14 @@
+"""
+Generate trajectories for a given agent and environment.
+    Usage:
+        python -m src.evaluate_trajectories -a .drrn -t ./trajectories/<agent_name>
+"""
 import argparse
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 
-from env.machiavelli.machiavelli_env import Trajectory
+from src.env.machiavelli.machiavelli_env import Trajectory
 
 
 def load_results(traj_dir: str):

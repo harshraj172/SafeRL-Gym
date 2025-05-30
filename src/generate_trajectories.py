@@ -1,7 +1,7 @@
 """
 Generate trajectories for a given agent and environment.
     Usage:
-        python generate_trajectories.py -a .drrn -t ./trajectories/<agent_name>
+        python -m src.generate_trajectories -a .drrn -t ./trajectories/<agent_name>
 """
 import argparse
 from pathlib import Path
@@ -11,9 +11,9 @@ import traceback
 from tqdm import tqdm
 import torch
 
-from agent.base import BaseAgent
-from env.machiavelli.config import MachiavelliConfig
-from env.machiavelli.machiavelli_env import MachiavelliEnv, Trajectory, build_state
+from src.agent.base import BaseAgent
+from src.env.machiavelli.config import MachiavelliConfig
+from src.env.machiavelli.machiavelli_env import MachiavelliEnv, Trajectory, build_state
 
 cfg = MachiavelliConfig()
 
