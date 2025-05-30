@@ -3,18 +3,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 from src.agent.base import BaseAgent
 
+
 class ActorNetwork(nn.Module):
     def __init__(self, model, tokenizer):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
-    
+
     def _set_device(self, device):
         self.model = self.model.to(device)
 
     def forward(self, state: str, actions: list[str], device, requires_grad=False):
         self._set_device(device)
-        assert self.model.device == device, f"Actor network device {self.model.device} does not match expected device {device}"
+        assert self.model.device.type == device.type, (
+            f"Actor network device type {self.model.device.type} does not match expected device type {device.type}"
+        )
         batch_size = len(actions)
         states = [state] * batch_size
         state_tokens = self.tokenizer(states, return_tensors="pt", padding=True)
@@ -27,14 +30,14 @@ class ActorNetwork(nn.Module):
         action_tokens["input_ids"] = torch.cat(
             (
                 action_tokens["input_ids"],
-                torch.zeros((batch_size, 1), dtype=torch.long, device=device),
+                torch.ones((batch_size, 1), dtype=torch.long, device=device),
             ),
             dim=1,
         )
-        tokenized_length = action_tokens["attention_mask"].sum(dim=1)
-        action_tokens["input_ids"][torch.arange(batch_size, device=device), tokenized_length - 1] = (
-            1  # EOS
-        )
+        # tokenized_length = action_tokens["attention_mask"].sum(dim=1)
+        # action_tokens["input_ids"][torch.arange(batch_size, device=device), tokenized_length - 1] = (
+        #     1  # EOS
+        # )
 
         inputs = {
             "input_ids": torch.cat(
@@ -51,23 +54,15 @@ class ActorNetwork(nn.Module):
         else:
             with torch.no_grad():
                 outputs = self.model(**inputs)
-        # Handle different model output types
-        if hasattr(outputs, 'logits'):
-            logits = outputs.logits
-        elif hasattr(outputs, 'last_hidden_state'):
-            # Add a linear head if not present
-            if not hasattr(self, 'lm_head'):
-                hidden_size = outputs.last_hidden_state.shape[-1]
-                self.lm_head = nn.Linear(hidden_size, self.tokenizer.vocab_size).to(device)
-            logits = self.lm_head(outputs.last_hidden_state)
-        else:
-            raise AttributeError("Model output does not have 'logits' or 'last_hidden_state'.")
+        logits = outputs.logits
         logits = torch.clamp(logits, min=-100, max=100)
         k = state_tokens["input_ids"].shape[1]
         m = action_tokens["input_ids"].shape[1]
         next_token_logits = logits[:, k - 1 : -1, :]
         next_token_logprobs = F.log_softmax(next_token_logits, dim=-1)
-        action_token_indices = action_tokens["input_ids"].to(device=device, dtype=torch.long)
+        action_token_indices = action_tokens["input_ids"].to(
+            device=device, dtype=torch.long
+        )
         batch_indices = torch.arange(action_token_indices.shape[0], device=device)
         token_indices = torch.arange(m, device=device)
         action_token_logprobs_ = next_token_logprobs[
@@ -79,7 +74,7 @@ class ActorNetwork(nn.Module):
     def create_distribution(self, state: str, actions: list[str], device):
         logits = self.forward(state, actions, device)
         return torch.distributions.Categorical(logits=logits)
-        
+
         # might wanna change this to a multinomial distribution if actions are not mutually exclusive
         # return torch.distributions.multinomial.Multinomial(total_count=1,logits=logits)
 
@@ -101,6 +96,7 @@ class CriticNetwork(nn.Module):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
+        self.attn_proj = nn.Linear(model.config.hidden_size, 1, bias=False)
         self.simple_nn = nn.Sequential(
             nn.Flatten(),
             nn.Linear(input_dim, 64),
@@ -108,23 +104,27 @@ class CriticNetwork(nn.Module):
             nn.Linear(64, 64),
             nn.ReLU(),
             nn.Linear(64, 1),
-            nn.Sigmoid(), 
         )
 
-    def _set_device(self, device): 
+    def _set_device(self, device):
         self.model = self.model.to(device)
         self.simple_nn = self.simple_nn.to(device)
+        self.attn_proj = self.attn_proj.to(device)
 
     def forward(self, state: str, device):
         self._set_device(device)
-        assert self.model.device == device, f"Model device {self.model.device} does not match expected device {device}"
-        inputs = self.tokenizer(state, return_tensors="pt").to(device)
+        assert self.model.device.type == device.type, (
+            f"Critic network device type {self.model.device.type} does not match expected device type {device.type}"
+        )
+        inputs = self.tokenizer(state, return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
         with torch.no_grad():
             outputs = self.model(**inputs, output_hidden_states=True)
-        # FOR TESTING ONLY: Use the first token's embedding from layer 1
-        hidden_states = outputs.hidden_states[1][:, 0, :].to(device)  # shape: [batch, hidden_size]
-        # hidden_states = outputs.hidden_states[1].to(device)  # shape: [batch, hidden_size]
-        x = self.simple_nn(hidden_states)
+        last_hidden = outputs.hidden_states[-1]  # [batch, seq_len, hidden]
+        scores = self.attn_proj(last_hidden)  # [batch, seq_len, 1]
+        weights = torch.softmax(scores.squeeze(-1), dim=1)  # [batch, seq_len]
+        pooled = torch.einsum("bsh,bs->bh", last_hidden, weights.to(device))
+        x = self.simple_nn(pooled)
         return x.squeeze()
 
 
@@ -146,12 +146,14 @@ class PPOLLMAgent(BaseAgent):
         self.critic = critic
         self.device = device
         if torch.cuda.is_available():
-            assert 'cuda' in str(self.device), f"Device should be CUDA, got {self.device}"
+            assert self.device.type == "cuda", (
+                f"Device should be CUDA, got {self.device}"
+            )
         self.gamma = kwargs.get("gamma", 0.99)
         self.clip_epsilon = kwargs.get("clip_epsilon", 0.1)
         self.lambda_gae = kwargs.get("lambda_gae", 0.95)
-        # Remove duplicate parameters from actor and critic
-        params = list({id(p): p for p in list(self.actor.parameters()) + list(self.critic.parameters())}.values())
+        # ded
+        params = list(self.actor.parameters()) + list(self.critic.parameters())
         self.optimizer = torch.optim.Adam(
             params,
             lr=kwargs.get("learning_rate", 1e-5),
@@ -165,20 +167,16 @@ class PPOLLMAgent(BaseAgent):
         If return_idx is True, also returns the action index.
         """
         info = self.env._get_info()
-        actions = info['game_state']['choice_texts']
+        actions = info["game_state"]["choice_texts"]
         dist = self.actor.create_distribution(state, actions, self.device)
         action_idx = dist.sample().item()
         action = actions[action_idx]
         logprob = dist.log_prob(torch.tensor(action_idx, device=self.device)).item()
         if return_idx:
-            if logprob_flag:
-                return action, logprob, action_idx
-            else:
-                return action, action_idx
-        if logprob_flag:
-            return action, logprob
-        else:
-            return action
+            return (
+                (action, logprob, action_idx) if logprob_flag else (action, action_idx)
+            )
+        return (action, logprob) if logprob_flag else action
 
     def collect_trajectories(self, batch_size):
         """
@@ -187,17 +185,18 @@ class PPOLLMAgent(BaseAgent):
         """
         trajectories = []
         reset_result = self.env.reset()
-        if isinstance(reset_result, tuple):
-            state = reset_result[0]
-        else:
-            state = reset_result
+        state = reset_result[0] if isinstance(reset_result, tuple) else reset_result
         for _ in range(batch_size):
             info = self.env._get_info()
-            available_actions = info['game_state']['choice_texts']
-            action, logprob, action_idx = self.choose_action(state, logprob_flag=True, return_idx=True)
+            available_actions = info["game_state"]["choice_texts"]
+            action, logprob, action_idx = self.choose_action(
+                state, logprob_flag=True, return_idx=True
+            )
             next_state, reward, done, _ = self.env.step(action_idx)
-            trajectories.append((state, action, reward, done, next_state, logprob, available_actions))
-            state = next_state if not done else self.env.reset()
+            trajectories.append(
+                (state, action, reward, done, next_state, logprob, available_actions)
+            )
+            state = self.env.reset() if done else next_state
             if isinstance(state, tuple):
                 state = state[0]
         self.trajectories = trajectories
@@ -224,10 +223,7 @@ class PPOLLMAgent(BaseAgent):
             returns.insert(0, gae + value)
         gaes_tensor = torch.tensor(gaes, dtype=torch.float32)
         returns_tensor = torch.tensor(returns, dtype=torch.float32)
-        if returns_flag:
-            return gaes_tensor, returns_tensor
-        else:
-            return gaes_tensor
+        return (gaes_tensor, returns_tensor) if returns_flag else gaes_tensor
 
     def update(self, trajectories=None):
         """
@@ -244,7 +240,9 @@ class PPOLLMAgent(BaseAgent):
         returns = returns.to(self.device)
         states = [t[0] for t in trajectories]
         actions = [t[1] for t in trajectories]
-        old_logprobs = torch.tensor([t[5] for t in trajectories], dtype=torch.float32, device=self.device)
+        old_logprobs = torch.tensor(
+            [t[5] for t in trajectories], dtype=torch.float32, device=self.device
+        )
         actions_per_state = [t[6] for t in trajectories]
         actions_idx = []
         filtered_states = []
@@ -258,21 +256,32 @@ class PPOLLMAgent(BaseAgent):
                 filtered_actions_per_state.append(acts)
                 filtered_old_logprobs.append(old_lp)
             except ValueError:
-                print(f"Warning: action '{a}' not found in available actions {acts}. Skipping.")
+                print(
+                    f"Warning: action '{a}' not found in available actions {acts}. Skipping."
+                )
                 continue
         if not actions_idx:
             print("Warning: No valid actions found for update.")
             return 0.0
-        logprobs = torch.stack([
-            self.actor.create_distribution(s, acts, self.device).log_prob(torch.tensor(a_idx, device=self.device))
-            for s, acts, a_idx in zip(filtered_states, filtered_actions_per_state, actions_idx)
-        ])
-        filtered_gaes = gaes[:len(logprobs)]
-        filtered_returns = returns[:len(logprobs)]
+        logprobs = torch.stack(
+            [
+                self.actor.create_distribution(s, acts, self.device).log_prob(
+                    torch.tensor(a_idx, device=self.device)
+                )
+                for s, acts, a_idx in zip(
+                    filtered_states, filtered_actions_per_state, actions_idx
+                )
+            ]
+        )
+        filtered_gaes = gaes[: len(logprobs)]
+        filtered_returns = returns[: len(logprobs)]
         filtered_old_logprobs = torch.stack(filtered_old_logprobs)
         ratio = torch.exp(logprobs - filtered_old_logprobs)
         surrogate1 = ratio * filtered_gaes
-        surrogate2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * filtered_gaes
+        surrogate2 = (
+            torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+            * filtered_gaes
+        )
         policy_loss = -torch.min(surrogate1, surrogate2).mean()
         # Value loss
         values = torch.stack([self.critic(s, self.device) for s in filtered_states])
