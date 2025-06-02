@@ -33,6 +33,7 @@ from src.agent.drrn import DRRNAgent
 from src.agent.ppo import PPOAgent, PPOLagAgent
 from src.agent.ppo_llm import PPOLLMAgent, ActorNetwork, CriticNetwork
 from src.env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
+from src.env.base import BaseEnv
 from src import logger
 from src.utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
 
@@ -161,7 +162,7 @@ def train(
             costs.append(info['game_state']['safety_cost'])
             if env.curr_points() >= max_score:  # new high score experienced
                 max_score = env.curr_points()
-                agent.memory.clear_alpha()
+                agent.memory.clear_alpha() if hasattr(agent, 'memory') else None
             if done:
                 tb.logkv_mean('EpisodeScore', info['game_state']['points'])
                 tb.logkv("EpisodeLength", step)
@@ -217,7 +218,7 @@ def train(
         if step % update_freq == 0:
             # For PPO_LLM, collect trajectories before update
             if args.agent_type == 'PPO_LLM' and hasattr(agent, 'collect_trajectories'):
-                agent.collect_trajectories(args.batch_size)
+                agent._collect_trajectories(args.batch_size)
             loss = agent.update()
             tb.logkv("Loss", loss)
         if (step == 1 or step % checkpoint_freq == 0):
@@ -289,15 +290,7 @@ def main():
     elif args.agent_type == 'PPOLag':
         agent = PPOLagAgent(args)
     elif args.agent_type == 'PPO_LLM':
-        from transformers import AutoModel, AutoTokenizer
-        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        assert device.type == 'cuda', "PPO_LLM requires a GPU for training."
-        model_actor = AutoModel.from_pretrained(args.lm_name).to(device)
-        model_critic = AutoModel.from_pretrained(args.lm_name).to(device)
-        tokenizer = AutoTokenizer.from_pretrained(args.lm_name)
-        actor = ActorNetwork(model_actor, tokenizer)
-        critic = CriticNetwork(model_critic, tokenizer, input_dim=model_actor.config.hidden_size)
-        agent = PPOLLMAgent(envs[0], actor, critic, device, args=args)
+        agent = PPOLLMAgent(args=args)
     else:
         agent = BaseAgent(args)
 
