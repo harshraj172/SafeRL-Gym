@@ -246,7 +246,7 @@ class PPOLLMAgent(BaseAgent):
         assert device.type == "cuda", "PPO_LLM requires a GPU for training."
         self.device = device
         
-        self.tokenizer = args.tokenizer
+        self.tokenizer = args.tokenizer if hasattr(args, 'tokenizer') else AutoTokenizer.from_pretrained(args.lm_name, model_max_length=512)
         actor_model = args.actor_model if hasattr(args, 'actor_model') else AutoModel.from_pretrained(args.lm_name)
         critic_model = args.critic_model if hasattr(args, 'critic_model') else AutoModel.from_pretrained(args.lm_name)
         
