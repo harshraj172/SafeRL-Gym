@@ -1,6 +1,6 @@
 """
 USAGE:
-    PYTHONPATH=($pwd) pytest tests/agent/test_ppo_llm.py
+    PYTHONPATH=. pytest tests/agent/test_ppo_llm.py
 """
 
 import pytest
