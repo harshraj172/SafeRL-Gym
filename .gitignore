@@ -19,3 +19,4 @@ results/*
 .DS_Store
 analysis/*
 .vscode/
+TODO.md
