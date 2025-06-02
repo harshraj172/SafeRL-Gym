@@ -1,19 +1,78 @@
+from collections import namedtuple
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from transformers import AutoModel, AutoTokenizer
 from src.agent.base import BaseAgent
+from src.env.machiavelli.utils import clean
+
+PPOLLMTransition = namedtuple(
+    "LLMTransition",
+    (
+        "state",
+        "action",
+        "log_prob",
+        "value",
+        "reward",
+        "done",
+        "next_state",
+        "next_acts",
+        "advantage",
+        "returns",
+        "cost",
+    ),
+)
+
+TrajectoryStep = namedtuple(
+    "TrajectoryStep",
+    [
+        "state",
+        "action",
+        "reward",
+        "done",
+        "next_state",
+        "logprob",
+        "available_actions",
+    ],
+)
 
 
 class ActorNetwork(nn.Module):
+    """
+    Actor network for PPO-LLM agent.
+    Computes action log-probabilities given a state and a list of possible actions using a language model.
+    """
+
     def __init__(self, model, tokenizer):
+        """
+        Args:
+            model: Pretrained language model (e.g., HuggingFace transformer).
+            tokenizer: Corresponding tokenizer for the language model.
+        """
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
 
     def _set_device(self, device):
+        """
+        Move the model to the specified device.
+        Args:
+            device: torch.device to move the model to.
+        """
         self.model = self.model.to(device)
 
     def forward(self, state: str, actions: list[str], device, requires_grad=False):
+        """
+        Compute log-probabilities for each action given the state.
+        Args:
+            state: Input state as a string.
+            actions: List of possible actions as strings.
+            device: torch.device to run computation on.
+            requires_grad: If True, enables gradient computation.
+        Returns:
+            torch.Tensor: Log-probabilities for each action.
+        """
         self._set_device(device)
         assert self.model.device.type == device.type, (
             f"Actor network device type {self.model.device.type} does not match expected device type {device.type}"
@@ -72,6 +131,15 @@ class ActorNetwork(nn.Module):
         return action_token_logprobs.sum(dim=-1)
 
     def create_distribution(self, state: str, actions: list[str], device):
+        """
+        Create a categorical distribution over actions given the state.
+        Args:
+            state: Input state as a string.
+            actions: List of possible actions as strings.
+            device: torch.device to run computation on.
+        Returns:
+            torch.distributions.Categorical: Distribution over actions.
+        """
         logits = self.forward(state, actions, device)
         return torch.distributions.Categorical(logits=logits)
 
@@ -81,6 +149,17 @@ class ActorNetwork(nn.Module):
     def create_conditional_logprobs(
         self, state: str, actions: list[str], device, probs=False, requires_grad=True
     ) -> torch.TensorType:
+        """
+        Compute conditional log-probabilities (and probabilities) for actions given the state.
+        Args:
+            state: Input state as a string.
+            actions: List of possible actions as strings.
+            device: torch.device to run computation on.
+            probs: If True, also returns probabilities.
+            requires_grad: If True, enables gradient computation.
+        Returns:
+            torch.Tensor or (torch.Tensor, torch.Tensor): Log-probabilities (and probabilities if probs=True).
+        """
         absolute_logprobs = self.forward(
             state, actions, device, requires_grad=requires_grad
         )
@@ -92,7 +171,13 @@ class ActorNetwork(nn.Module):
 
 
 class CriticNetwork(nn.Module):
+    """
+    Critic network for PPO-LLM agent.
+    Estimates the value of a given state using a language model and a small neural network.
+    """
+
     def __init__(self, model, tokenizer, input_dim):
+
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
@@ -107,11 +192,24 @@ class CriticNetwork(nn.Module):
         )
 
     def _set_device(self, device):
+        """
+        Move the model and value head to the specified device.
+        Args:
+            device: torch.device to move the model to.
+        """
         self.model = self.model.to(device)
         self.simple_nn = self.simple_nn.to(device)
         self.attn_proj = self.attn_proj.to(device)
 
     def forward(self, state: str, device):
+        """
+        Estimate the value of the given state.
+        Args:
+            state: Input state as a string.
+            device: torch.device to run computation on.
+        Returns:
+            torch.Tensor: Estimated value of the state.
+        """
         self._set_device(device)
         assert self.model.device.type == device.type, (
             f"Critic network device type {self.model.device.type} does not match expected device type {device.type}"
@@ -129,45 +227,207 @@ class CriticNetwork(nn.Module):
 
 
 class PPOLLMAgent(BaseAgent):
-    def __init__(self, env, actor, critic, device, args=None, **kwargs):
+    """
+    PPO agent using language models for both actor and critic.
+    Handles action selection, experience storage, advantage estimation, and PPO updates.
+    """
+
+    def __init__(self, args=None, **kwargs):
         """
-        PPOLLMAgent for Machiavelli environment, inheriting from BaseAgent.
-        - env: Machiavelli environment instance
-        - actor: ActorNetwork
-        - critic: CriticNetwork
-        - device: torch device
-        - args: argparse.Namespace or dict for BaseAgent (optional)
-        - kwargs: PPO hyperparameters
+        Initialize the PPO-LLM agent.
+        Args:
+            args: Namespace or dict with environment and model parameters.
+            kwargs: Additional PPO hyperparameters.
         """
         if args is not None:
             super().__init__(args)
-        self.env = env
-        self.actor = actor
-        self.critic = critic
+
+        device = torch.device(f"cuda:{torch.cuda.current_device()}") if torch.cuda.is_available() else torch.device("cpu")
+        assert device.type == "cuda", "PPO_LLM requires a GPU for training."
         self.device = device
-        if torch.cuda.is_available():
-            assert self.device.type == "cuda", (
-                f"Device should be CUDA, got {self.device}"
-            )
+        
+        self.tokenizer = args.tokenizer
+        actor_model = args.actor_model if hasattr(args, 'actor_model') else AutoModel.from_pretrained(args.lm_name)
+        critic_model = args.critic_model if hasattr(args, 'critic_model') else AutoModel.from_pretrained(args.lm_name)
+        
+        self.actor = ActorNetwork(actor_model, self.tokenizer)
+        self.critic = CriticNetwork(critic_model, self.tokenizer, input_dim=actor_model.config.hidden_size)
+
+        self.env = args.env
+
         self.gamma = kwargs.get("gamma", 0.99)
         self.clip_epsilon = kwargs.get("clip_epsilon", 0.1)
         self.lambda_gae = kwargs.get("lambda_gae", 0.95)
-        # ded
+
         params = list(self.actor.parameters()) + list(self.critic.parameters())
         self.optimizer = torch.optim.Adam(
             params,
             lr=kwargs.get("learning_rate", 1e-5),
         )
-        self.trajectories = []
 
-    def choose_action(self, state, logprob_flag=False, return_idx=False):
+        self.trajectories = []
+        self.episode_buffer = [[] for _ in range(args.num_envs)]
+        self.completed_episodes = [[]]
+        self.max_segment_length = kwargs.get("max_segment_length", 256)
+        self.last_actions = []
+
+    def _tokenize(self, text):
+        """
+        Tokenize input text using the actor's tokenizer.
+        Args:
+            text: Input string to tokenize.
+        Returns:
+            dict: Tokenized representation.
+        """
+        encoding = self.tokenizer(
+            clean(text), padding=True, truncation=True, return_tensors="pt"
+        ).to(self.device)
+        encoding["length"] = torch.tensor([encoding["input_ids"].size(1)]).to(
+            self.device
+        )
+        return encoding
+
+    @torch.no_grad()
+    def act(self, states, poss_acts, lm=None, **kwargs):
+        """
+        Select actions for a batch of states and possible actions.
+        Args:
+            states: List of state strings.
+            poss_acts: List of lists of possible actions for each state.
+            lm: (Unused) Placeholder for compatibility.
+            **kwargs: Additional arguments.
+        Returns:
+            tuple: (actions, action indices, log-probabilities)
+        """
+        act_ids = []
+        action_idxs = []
+        log_probs = []
+        self.last_actions = []
+        for i, (state, actions) in enumerate(zip(states, poss_acts)):
+            action, logprob, action_idx = self._choose_action(
+                state, actions, logprob_flag=True, return_idx=True
+            )
+            act_ids.append(action)
+            action_idxs.append(action_idx)
+            log_probs.append(logprob)
+            self.last_actions.append(
+                {
+                    "action": action_idx,
+                    "log_prob": logprob,
+                    "value": self.critic(state, self.device).item(),
+                }
+            )
+        return act_ids, action_idxs, log_probs
+
+    def observe(self, transition, is_prior=False):
+        """
+        Store a transition in the episode buffer and handle episode completion.
+
+        Args:
+            transition: An object containing the following attributes:
+                - state: The current environment state (string or custom state object, may include 'env_idx').
+                - reward: The reward received after taking the action (float).
+                - done: Whether the episode has ended (bool).
+                - next_state: The next environment state after the action (string or custom state object).
+                - next_acts: (Optional) List of possible actions for the next state.
+                - cost: (Optional) Cost associated with the transition (float, default 0).
+            is_prior: Unused. Present for compatibility with some interfaces (bool, default False).
+        """
+        env_idx = getattr(transition.state, "env_idx", 0)
+        action_info = (
+            self.last_actions[env_idx]
+            if hasattr(self, "last_actions") and env_idx < len(self.last_actions)
+            else None
+        )
+
+        ppo_llm_transition = PPOLLMTransition(
+            state=transition.state,
+            action=action_info["action"] if action_info else None,
+            log_prob=action_info["log_prob"] if action_info else None,
+            value=action_info["value"] if action_info else None,
+            reward=transition.reward,
+            done=transition.done,
+            next_state=transition.next_state,
+            next_acts=getattr(transition, "next_acts", None),
+            cost=getattr(transition, "cost", 0),
+            advantage=None,
+            returns=None,
+        )
+        self.episode_buffer[env_idx].append(ppo_llm_transition)
+        self.completed_episodes[-1].append(ppo_llm_transition)
+        if transition.done or len(self.episode_buffer) >= self.max_segment_length:
+            self.completed_episodes.append([])
+            self.episode_buffer = []
+
+    def update(self):
+        """
+        Perform PPO update using completed episodes.
+        Returns:
+            float: Total loss over all episodes.
+        """
+        if not self.completed_episodes:
+            return 0.0
+        total_loss = 0.0
+        for episode in self.completed_episodes:
+            if len(episode) == 0:
+                continue
+            if episode[0].advantage is None:
+                self._compute_advantages(episode)
+            states = [t.state for t in episode]
+            actions = torch.tensor(
+                [t.action for t in episode], device=self.device, dtype=torch.long
+            )
+            old_log_probs = torch.tensor(
+                [t.log_prob for t in episode], device=self.device, dtype=torch.float32
+            )
+            advantages = torch.tensor(
+                [t.advantage for t in episode], device=self.device, dtype=torch.float32
+            )
+            returns = torch.tensor(
+                [t.returns for t in episode], device=self.device, dtype=torch.float32
+            )
+            logprobs = torch.stack(
+                [
+                    self.actor.create_distribution(
+                        s,
+                        self.env._get_info()["game_state"]["choice_texts"],
+                        self.device,
+                    ).log_prob(a)
+                    for s, a in zip(states, actions)
+                ]
+            )
+            values = torch.stack([self.critic(s, self.device) for s in states])
+            ratio = torch.exp(logprobs - old_log_probs)
+            surrogate1 = ratio * advantages
+            surrogate2 = (
+                torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+                * advantages
+            )
+            policy_loss = -torch.min(surrogate1, surrogate2).mean()
+            value_loss = F.mse_loss(values, returns)
+            loss = policy_loss + value_loss
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            total_loss += loss.item()
+        self.completed_episodes = [[]]
+        return total_loss
+
+    def _choose_action(self, state, actions=None, logprob_flag=False, return_idx=False):
         """
         Choose an action from the current state using the actor network.
-        Returns (action, logprob) if logprob_flag else just action.
-        If return_idx is True, also returns the action index.
+        Args:
+            state: Input state as a string.
+            actions: List of possible actions as strings (optional).
+            logprob_flag: If True, also return log-probability.
+            return_idx: If True, also return action index.
+        Returns:
+            tuple or str: Action (and optionally log-prob, index).
         """
-        info = self.env._get_info()
-        actions = info["game_state"]["choice_texts"]
+        # query the environment for available actions if actions not provided
+        if not actions:
+            info = self.env._get_info()
+            actions = info["game_state"]["choice_texts"]
         dist = self.actor.create_distribution(state, actions, self.device)
         action_idx = dist.sample().item()
         action = actions[action_idx]
@@ -178,10 +438,47 @@ class PPOLLMAgent(BaseAgent):
             )
         return (action, logprob) if logprob_flag else action
 
-    def collect_trajectories(self, batch_size):
+    def _compute_advantages(self, episode, gamma=None, lambda_gae=None):
         """
-        Collects a batch of trajectories (state, action, reward, done, next_state, logprob).
-        Resets env if done.
+        Compute GAE and returns for an episode. Updates episode transitions in-place.
+        Args:
+            episode: List of PPOLLMTransition objects for the episode.
+            gamma: Discount factor (optional).
+            lambda_gae: GAE lambda parameter (optional).
+        Returns:
+            tuple: (advantages, returns) as numpy arrays.
+        """
+        gamma = gamma if gamma is not None else self.gamma
+        lambda_gae = lambda_gae if lambda_gae is not None else self.lambda_gae
+        rewards = [t.reward for t in episode]
+        values = [t.value for t in episode]
+        dones = [t.done for t in episode]
+        advantages = np.zeros(len(rewards), dtype=np.float32)
+        returns = np.zeros(len(rewards), dtype=np.float32)
+        next_value = 0
+        next_advantage = 0
+        for t in reversed(range(len(rewards))):
+            done_mask = 0 if dones[t] else 1
+            delta = rewards[t] + gamma * next_value * done_mask - values[t]
+            advantages[t] = delta + gamma * lambda_gae * next_advantage * done_mask
+            returns[t] = rewards[t] + gamma * next_value * done_mask
+            next_value = values[t]
+            next_advantage = advantages[t]
+        if len(advantages) > 1:
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        for i in range(len(episode)):
+            episode[i] = episode[i]._replace(
+                advantage=advantages[i], returns=returns[i]
+            )
+        return advantages, returns
+
+    def _collect_trajectories(self, batch_size):
+        """
+        Collect a batch of trajectories by interacting with the environment.
+        Args:
+            batch_size: Number of transitions to collect.
+        Returns:
+            list: List of TrajectoryStep objects.
         """
         trajectories = []
         reset_result = self.env.reset()
@@ -189,12 +486,20 @@ class PPOLLMAgent(BaseAgent):
         for _ in range(batch_size):
             info = self.env._get_info()
             available_actions = info["game_state"]["choice_texts"]
-            action, logprob, action_idx = self.choose_action(
+            action, logprob, action_idx = self._choose_action(
                 state, logprob_flag=True, return_idx=True
             )
             next_state, reward, done, _ = self.env.step(action_idx)
             trajectories.append(
-                (state, action, reward, done, next_state, logprob, available_actions)
+                TrajectoryStep(
+                    state=state,
+                    action=action,
+                    reward=reward,
+                    done=done,
+                    next_state=next_state,
+                    logprob=logprob,
+                    available_actions=available_actions,
+                )
             )
             state = self.env.reset() if done else next_state
             if isinstance(state, tuple):
@@ -202,10 +507,15 @@ class PPOLLMAgent(BaseAgent):
         self.trajectories = trajectories
         return trajectories
 
-    def compute_gaes(self, trajectories, returns_flag=False):
+    def _compute_gaes(self, trajectories, returns_flag=False):
         """
-        Compute Generalized Advantage Estimates (GAEs) for each trajectory.
-        Returns (gaes, returns) if returns_flag else just gaes.
+        Compute Generalized Advantage Estimates (GAEs) for a list of trajectories. 
+        Currently not used in the update process, but can be useful for debugging a batch of trajectories.
+        Args:
+            trajectories: List of TrajectoryStep objects.
+            returns_flag: If True, also return value estimates.
+        Returns:
+            torch.Tensor or tuple: GAE tensor (and returns tensor if returns_flag=True).
         """
         gaes = []
         returns = []
@@ -224,71 +534,3 @@ class PPOLLMAgent(BaseAgent):
         gaes_tensor = torch.tensor(gaes, dtype=torch.float32)
         returns_tensor = torch.tensor(returns, dtype=torch.float32)
         return (gaes_tensor, returns_tensor) if returns_flag else gaes_tensor
-
-    def update(self, trajectories=None):
-        """
-        Performs a PPO update using the collected trajectories.
-        Computes policy loss and value loss, then optimizes.
-        """
-        if trajectories is None:
-            trajectories = self.trajectories
-        if not trajectories:
-            print("Warning: No trajectories to update on.")
-            return 0.0
-        gaes, returns = self.compute_gaes(trajectories, returns_flag=True)
-        gaes = gaes.to(self.device)
-        returns = returns.to(self.device)
-        states = [t[0] for t in trajectories]
-        actions = [t[1] for t in trajectories]
-        old_logprobs = torch.tensor(
-            [t[5] for t in trajectories], dtype=torch.float32, device=self.device
-        )
-        actions_per_state = [t[6] for t in trajectories]
-        actions_idx = []
-        filtered_states = []
-        filtered_actions_per_state = []
-        filtered_old_logprobs = []
-        for s, acts, a, old_lp in zip(states, actions_per_state, actions, old_logprobs):
-            try:
-                idx = acts.index(a)
-                actions_idx.append(idx)
-                filtered_states.append(s)
-                filtered_actions_per_state.append(acts)
-                filtered_old_logprobs.append(old_lp)
-            except ValueError:
-                print(
-                    f"Warning: action '{a}' not found in available actions {acts}. Skipping."
-                )
-                continue
-        if not actions_idx:
-            print("Warning: No valid actions found for update.")
-            return 0.0
-        logprobs = torch.stack(
-            [
-                self.actor.create_distribution(s, acts, self.device).log_prob(
-                    torch.tensor(a_idx, device=self.device)
-                )
-                for s, acts, a_idx in zip(
-                    filtered_states, filtered_actions_per_state, actions_idx
-                )
-            ]
-        )
-        filtered_gaes = gaes[: len(logprobs)]
-        filtered_returns = returns[: len(logprobs)]
-        filtered_old_logprobs = torch.stack(filtered_old_logprobs)
-        ratio = torch.exp(logprobs - filtered_old_logprobs)
-        surrogate1 = ratio * filtered_gaes
-        surrogate2 = (
-            torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
-            * filtered_gaes
-        )
-        policy_loss = -torch.min(surrogate1, surrogate2).mean()
-        # Value loss
-        values = torch.stack([self.critic(s, self.device) for s in filtered_states])
-        value_loss = F.mse_loss(values, filtered_returns)
-        # Optimize
-        loss = policy_loss + value_loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        return loss.item()
