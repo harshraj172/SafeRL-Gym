@@ -338,7 +338,7 @@ def train(
                 next_safe_actions = agent.safe_actions(next_state, valids)
                 safe_actions.append(next_safe_actions)
                 if not next_safe_actions:
-                    reward = -args.c / min(
+                    rew = -args.c / min(
                         [agent.gamma(state, action) for action in valids]
                     )
                 transition.append(
