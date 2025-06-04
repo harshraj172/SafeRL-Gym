@@ -1,8 +1,13 @@
 """
 Train a DRRN agent on the Machiavelli environment.
 
-Usage: 
-    python train.py --env Machiavelli --agent_type DRRN --max_steps 50000 --update_freq 1 --checkpoint_freq 1000 --log_freq 100 --num_envs 8
+USAGE: 
+    
+    DRRN: 
+    python -m src.train --max_steps 10000 --game kung-fu --agent_type DRRN --output_dir ./results/Machiavelli/DRRN/microsoft_deberta-v3-xsmall/kung-fu
+
+    PPO LLM: 
+    python -m src.train --max_steps 1000 --game kung-fu --agent_type PPO_LLM --lm_name google/gemma-3-1b-it --output_dir ./results/Machiavelli/PPO_LLM/google_gemma-3-1b-it/kung-fu
 """
 
 import os
@@ -23,12 +28,14 @@ import torch
 import gym
 
 from tqdm.auto import tqdm
-from agent.base import BaseAgent
-from agent.drrn import DRRNAgent 
-from agent.ppo import PPOAgent, PPOLagAgent
-from env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
-import logger
-from utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
+from src.agent.base import BaseAgent
+from src.agent.drrn import DRRNAgent 
+from src.agent.ppo import PPOAgent, PPOLagAgent
+from src.agent.ppo_llm import PPOLLMAgent, ActorNetwork, CriticNetwork
+from src.env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
+from src.env.base import BaseEnv
+from src import logger
+from src.utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
 
 logging.getLogger().setLevel(logging.CRITICAL)
 
@@ -58,7 +65,7 @@ def parse_args():
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
     parser.add_argument('--num_envs', default=8, type=int, help="Number of instances of env (for diverse rollouts)")
-    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'PPOLag', 'Random'])
+    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'PPO_LLM', 'PPOLag', 'Random'])
     parser.add_argument('--max_steps', default=5000, type=int)
     parser.add_argument('--update_freq', default=1, type=int)
     parser.add_argument('--checkpoint_freq', default=1000, type=int)
@@ -102,6 +109,18 @@ def parse_args():
     parser.add_argument('--lm_dict', default='')
     return parser.parse_args()
 
+def log_episode_stats(tb, info, step):
+    tb.logkv_mean('EpisodeScore', info['game_state']['points'])
+    tb.logkv("EpisodeLength", step)
+    tb.logkv("NumAch", len(info['game_state']['unlocked_achievements']))
+    tb.logkv("Cost", info['game_state']['cumulative_cost'])
+    tb.logkv("Reward", info['game_state']['reward'])
+
+def log_step_stats(log, step, action_str, reward, info, done):
+    log(f'>> Action{step}: {action_str}')
+    log(f"Reward{step}: {reward}, Score {info['game_state']['points']}, Num ach {len(info['game_state']['unlocked_achievements'])}, Done {done}\n")
+    log(f"Safety cost {info['game_state']['cumulative_cost']}, Reward {info['game_state']['reward']}")
+
 def train(
     agent,
     envs,
@@ -129,9 +148,6 @@ def train(
 
     # Convert raw text obs -> agent states
     states = build_state(agent._tokenize, obs, infos)
-
-    # print(obs, rewards, dones, infos, transitions)
-    # print(states)
     
     # Each environment must provide the valid actions in some form
     valid_ids = [
@@ -155,18 +171,13 @@ def train(
             costs.append(info['game_state']['safety_cost'])
             if env.curr_points() >= max_score:  # new high score experienced
                 max_score = env.curr_points()
-                agent.memory.clear_alpha()
+                agent.memory.clear_alpha() if hasattr(agent, 'memory') else None
             if done:
-                tb.logkv_mean('EpisodeScore', info['game_state']['points'])
-                tb.logkv("EpisodeLength", step)
-                tb.logkv("NumAch", len(info['game_state']['unlocked_achievements']))
-                tb.logkv("Cost", info['game_state']['cumulative_cost'])
-                tb.logkv("Reward", info['game_state']['reward'])
+                log_episode_stats(tb, info, step)
                 if env.curr_points() >= max_score:  # put in alpha queue
                     for transition in transitions[i]:
                         agent.observe(transition, is_prior=True)
                 ob, info = env.reset(seed=args.seed)
-                #agent.reset(i)
                 next_obs, next_rewards, next_dones, next_infos = (next_obs + [ob],
                                                                   next_rewards + [0],
                                                                   next_dones + [False],
@@ -178,15 +189,8 @@ def train(
                                                                   next_infos + [info])
         rewards, dones, infos = next_rewards, next_dones, next_infos
 
-        # continue to log envs[0]
-        log('>> Action{}: {}'.format(step, action_strs[0]))
-        log("Reward{}: {}, Score {}, Num ach {}, Done {}\n".format(
-            step, rewards[0], infos[0]['game_state']['points'],
-            len(infos[0]['game_state']['unlocked_achievements']), dones[0]))
-        log("Safety cost {}, Reward {}".format(
-            infos[0]['game_state']['cumulative_cost'],
-            infos[0]['game_state']['reward']))
-        
+        # Logging for envs[0]
+        log_step_stats(log, step, action_strs[0], rewards[0], infos[0], dones[0])
 
         next_states = build_state(
             agent._tokenize, next_obs, infos, prev_obs=obs, prev_acts=action_strs)
@@ -194,10 +198,10 @@ def train(
             [agent._tokenize(a) for a in info['game_state']['choice_texts']]
             for info in infos
         ]
-        for state, act, rew, next_state, valids, done, transition, cost in zip(
-                states, action_ids, rewards, next_states, next_valids, dones, transitions, costs):
+        for state, act, rew, valid_action_id, next_state, valids, done, transition, cost in zip(
+                states, action_ids, rewards, valid_ids, next_states, next_valids, dones, transitions, costs):
             if len(act) > 0:  # not [] (i.e. reset)
-                transition.append(Transition(state, act, rew, next_state, valids, done, cost))
+                transition.append(Transition(state=state, act=act, reward=rew, valid_acts=valid_action_id, next_state=next_state, next_acts=valids, done=done, cost=cost))
                 agent.observe(transition[-1])  # , is_prior=(rew != 0)
         
         # Advance
@@ -214,10 +218,15 @@ def train(
         if (step == 1 or step % checkpoint_freq == 0):
             savedir = './checkpoints_utility/'
             os.makedirs(savedir, exist_ok=True)
-            torch.save(
-                agent,
-                savedir + '{}_{}_{}_game{}.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game)
-            )
+            if args.agent_type == 'PPO_LLM':
+                # Save only model weights for PPO_LLM
+                torch.save(agent.actor.state_dict(), savedir + '{}_{}_{}_game{}_actor.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game))
+                torch.save(agent.critic.state_dict(), savedir + '{}_{}_{}_game{}_critic.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game))
+            else:
+                torch.save(
+                    agent,
+                    savedir + '{}_{}_{}_game{}.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game)
+                )
             # save args as json
             with open(savedir + '{}_{}_{}_game{}.json'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game), 'w') as f:
                 json.dump(vars(args), f, indent=4)
@@ -274,6 +283,8 @@ def main():
         agent = PPOAgent(args)
     elif args.agent_type == 'PPOLag':
         agent = PPOLagAgent(args)
+    elif args.agent_type == 'PPO_LLM':
+        agent = PPOLLMAgent(args=args)
     else:
         agent = BaseAgent(args)
 

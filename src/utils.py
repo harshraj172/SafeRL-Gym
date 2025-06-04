@@ -5,7 +5,7 @@ import random
 import matplotlib.pyplot as plt
 
 State = namedtuple('State', ('obs', 'description', 'inventory', 'state'))
-Transition = namedtuple('Transition', ('state', 'act', 'reward', 'next_state', 'next_acts', 'done', 'cost'))
+Transition = namedtuple('Transition', ('state', 'act', 'reward', 'valid_acts', 'next_state', 'next_acts', 'done', 'cost'))
 
 
 def read_json(file_path):
