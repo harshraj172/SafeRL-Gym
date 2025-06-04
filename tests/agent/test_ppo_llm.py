@@ -9,7 +9,9 @@ from unittest.mock import patch
 from types import SimpleNamespace
 import torch
 from transformers import PreTrainedTokenizerBase, PretrainedConfig, PreTrainedModel
+from transformers import BatchEncoding
 from src.env.machiavelli.machiavelli_env import MachiavelliEnv
+from src.agent.ppo_llm import ActorNetwork, CriticNetwork, PPOLLMAgent
 
 
 class MockTokenizer(PreTrainedTokenizerBase):
@@ -42,28 +44,40 @@ class MockTokenizer(PreTrainedTokenizerBase):
         if isinstance(texts, str):
             texts = [texts]
 
-        # Tokenize by splitting on whitespace and handling punctuation
+        def extract_text(t):
+            if hasattr(t, "obs") and isinstance(t.obs, dict) and "text" in t.obs:
+                return t.obs["text"]
+            elif isinstance(t, str):
+                return t
+            else:
+                return str(t)
+
         def tokenize(t):
-            return t.replace(",", " ,").replace(".", " .").split()
+            return extract_text(t).replace(",", " ,").replace(".", " .").split()
 
         tokenized = [tokenize(t) for t in texts]
-        max_len = max(len(toks) for toks in tokenized)
+        # Always pad if return_tensors is set (for HF compatibility)
+        do_pad = padding or (return_tensors is not None)
+        max_len = max(len(toks) for toks in tokenized) if do_pad else None
         input_ids = []
         attention_mask = []
         for toks in tokenized:
-            # Use self.pad_token_id for unknown tokens instead of 99
             ids = [self.vocab.get(tok, self.pad_token_id) for tok in toks]
-            if padding:
+            if do_pad and max_len is not None:
                 pad_len = max_len - len(ids)
-                if padding_side == "right":
-                    ids = ids + [self.pad_token_id] * pad_len
-                else:
-                    ids = [self.pad_token_id] * pad_len + ids
+                if pad_len > 0:
+                    if padding_side == "right":
+                        ids = ids + [self.pad_token_id] * pad_len
+                    else:
+                        ids = [self.pad_token_id] * pad_len + ids
             input_ids.append(ids)
-            attention_mask.append([1 if i < len(toks) else 0 for i in range(max_len)])
+            if do_pad and max_len is not None:
+                attention_mask.append([1] * len(toks) + [0] * (max_len - len(toks)))
+            else:
+                attention_mask.append([1] * len(toks))
         input_ids = torch.tensor(input_ids)
         attention_mask = torch.tensor(attention_mask)
-        return {"input_ids": input_ids, "attention_mask": attention_mask}
+        return BatchEncoding({"input_ids": input_ids, "attention_mask": attention_mask})
 
     def decode(self, ids):
         return " ".join(self.inv_vocab.get(i, "<unk>") for i in ids)
@@ -145,8 +159,6 @@ def machiavelli_env():
 
 
 def test_mock_actornetwork_forward(mock_resources):
-    from src.agent.ppo_llm import ActorNetwork
-
     device, tokenizer, model, _ = mock_resources
     actor = ActorNetwork(model, tokenizer)
     state = "Once upon a"
@@ -157,8 +169,6 @@ def test_mock_actornetwork_forward(mock_resources):
 
 
 def test_mock_criticnetwork_forward(mock_resources):
-    from src.agent.ppo_llm import CriticNetwork
-
     device, tokenizer, model, config = mock_resources
     critic = CriticNetwork(model, tokenizer, config.hidden_size)
     state = "Once upon a time , there was a king ."
@@ -167,8 +177,6 @@ def test_mock_criticnetwork_forward(mock_resources):
 
 
 def test_mock_actornetwork_conditional_logprobs(mock_resources):
-    from src.agent.ppo_llm import ActorNetwork
-
     device, tokenizer, model, _ = mock_resources
     actor = ActorNetwork(model, tokenizer)
     state = "Once upon a"
@@ -182,8 +190,6 @@ def test_mock_actornetwork_conditional_logprobs(mock_resources):
 
 
 def test_gemma_actornetwork_conditional_logprobs(mock_resources):
-    from src.agent.ppo_llm import ActorNetwork
-
     device, tokenizer, model, _ = mock_resources
     actor = ActorNetwork(model, tokenizer)
     state = "Once upon a"
@@ -196,8 +202,6 @@ def test_gemma_actornetwork_conditional_logprobs(mock_resources):
 
 
 def test_mock_criticnetwork_repr(mock_resources):
-    from src.agent.ppo_llm import CriticNetwork
-
     _, tokenizer, model, config = mock_resources
     input_dim = config.hidden_size
     critic = CriticNetwork(model, tokenizer, input_dim)
@@ -207,8 +211,6 @@ def test_mock_criticnetwork_repr(mock_resources):
 
 
 def test_gemma_criticnetwork_forward(mock_resources):
-    from src.agent.ppo_llm import CriticNetwork
-
     device, tokenizer, model, config = mock_resources
     input_dim = config.hidden_size
     critic = CriticNetwork(model, tokenizer, input_dim)
@@ -223,8 +225,6 @@ def test_gemma_criticnetwork_forward(mock_resources):
 
 
 def test_ppoagent_choose_action_machiavelli(mock_resources, machiavelli_env):
-    from src.agent.ppo_llm import PPOLLMAgent
-
     device, tokenizer, model, config = mock_resources
     model2 = copy.deepcopy(model)
     args = SimpleNamespace(
@@ -242,45 +242,15 @@ def test_ppoagent_choose_action_machiavelli(mock_resources, machiavelli_env):
     ):
         agent = PPOLLMAgent(args)
         state, _ = machiavelli_env.reset()
-        action, logprob = agent._choose_action(state, logprob_flag=True)
+        possible_actions = machiavelli_env._get_info()["game_state"]["choice_texts"]
+        action, logprob = agent._choose_action(
+            state, possible_actions, logprob_flag=True
+        )
         assert isinstance(action, (str, int))
         assert isinstance(logprob, float)
 
 
-def test_ppoagent_collect_trajectories_machiavelli(mock_resources, machiavelli_env):
-    from src.agent.ppo_llm import PPOLLMAgent
-
-    device, tokenizer, model, config = mock_resources
-    model2 = copy.deepcopy(model)
-    args = SimpleNamespace(
-        actor_model=model,
-        critic_model=model2,
-        tokenizer=tokenizer,
-        env=machiavelli_env,
-        num_envs=1,
-    )
-    with (
-        patch("src.agent.ppo_llm.AutoModel.from_pretrained", return_value=model),
-        patch(
-            "src.agent.ppo_llm.AutoTokenizer.from_pretrained", return_value=tokenizer
-        ),
-    ):
-        agent = PPOLLMAgent(args)
-        batch_size = 3
-        trajectories = agent._collect_trajectories(batch_size)
-        assert len(trajectories) == batch_size
-        states, actions, rewards, dones, next_states, logprobs, *_ = zip(*trajectories)
-        assert all(isinstance(s, str) for s in states)
-        assert all(isinstance(a, (str, int)) for a in actions)
-        assert all(isinstance(r, (float, int)) for r in rewards)
-        assert all(isinstance(d, bool) for d in dones)
-        assert all(isinstance(ns, str) for ns in next_states)
-        assert all(isinstance(lp, float) for lp in logprobs)
-
-
 def test_ppollmagent_act(mock_resources, machiavelli_env):
-    from src.agent.ppo_llm import PPOLLMAgent
-
     device, tokenizer, model, config = mock_resources
     model2 = copy.deepcopy(model)
     args = SimpleNamespace(
@@ -307,8 +277,6 @@ def test_ppollmagent_act(mock_resources, machiavelli_env):
 
 
 def test_ppollmagent_observe(mock_resources, machiavelli_env):
-    from src.agent.ppo_llm import PPOLLMAgent
-
     device, tokenizer, model, config = mock_resources
     model2 = copy.deepcopy(model)
     args = SimpleNamespace(
@@ -346,8 +314,6 @@ def test_ppollmagent_observe(mock_resources, machiavelli_env):
 
 
 def test_ppollmagent_update(mock_resources, machiavelli_env):
-    from src.agent.ppo_llm import PPOLLMAgent
-
     device, tokenizer, model, config = mock_resources
     model2 = copy.deepcopy(model)
     args = SimpleNamespace(
@@ -371,6 +337,7 @@ def test_ppollmagent_update(mock_resources, machiavelli_env):
         transition = SimpleNamespace(
             state=state,
             reward=reward,
+            valid_acts=poss_acts[0],
             done=done,
             next_state=next_state,
             next_acts=None,
@@ -379,3 +346,73 @@ def test_ppollmagent_update(mock_resources, machiavelli_env):
         agent.observe(transition)
         loss = agent.update()
         assert isinstance(loss, float)
+
+
+def test_train_main_ppollmagent(monkeypatch, mock_resources, tmp_path):
+    import sys
+    from src import train
+
+    sys_argv_backup = sys.argv
+    sys.argv = [
+        "src/train.py",
+        "--max_steps",
+        "10",
+        "--game",
+        "aegis-project-180-files",
+        "--agent_type",
+        "PPO_LLM",
+        "--output_dir",
+        str(tmp_path),
+        "--num_envs",
+        "1",
+        "--env",
+        "Machiavelli",
+        "--lm_name",
+        "mock-lm",
+    ]
+
+    device, tokenizer, model, config = mock_resources
+    monkeypatch.setattr(
+        "src.agent.ppo_llm.AutoModel.from_pretrained", lambda *a, **k: model
+    )
+    monkeypatch.setattr(
+        "src.agent.ppo_llm.AutoTokenizer.from_pretrained",
+        lambda *a, **k: tokenizer,
+    )
+    monkeypatch.setattr(
+        "src.env.machiavelli.MachiavelliEnv", lambda *a, **k: machiavelli_env()
+    )
+
+    train.main()
+
+    sys.argv = sys_argv_backup
+
+
+# def test_ppoagent_collect_trajectories_machiavelli(mock_resources, machiavelli_env):
+
+#     device, tokenizer, model, config = mock_resources
+#     model2 = copy.deepcopy(model)
+#     args = SimpleNamespace(
+#         actor_model=model,
+#         critic_model=model2,
+#         tokenizer=tokenizer,
+#         env=machiavelli_env,
+#         num_envs=1,
+#     )
+#     with (
+#         patch("src.agent.ppo_llm.AutoModel.from_pretrained", return_value=model),
+#         patch(
+#             "src.agent.ppo_llm.AutoTokenizer.from_pretrained", return_value=tokenizer
+#         ),
+#     ):
+#         agent = PPOLLMAgent(args)
+#         batch_size = 3
+#         trajectories = agent._collect_trajectories(batch_size)
+#         assert len(trajectories) == batch_size
+#         states, actions, rewards, dones, next_states, logprobs, *_ = zip(*trajectories)
+#         assert all(isinstance(s, str) for s in states)
+#         assert all(isinstance(a, (str, int)) for a in actions)
+#         assert all(isinstance(r, (float, int)) for r in rewards)
+#         assert all(isinstance(d, bool) for d in dones)
+#         assert all(isinstance(ns, str) for ns in next_states)
+#         assert all(isinstance(lp, float) for lp in logprobs)

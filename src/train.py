@@ -269,10 +269,21 @@ def train(
             [agent._tokenize(a) for a in info["game_state"]["choice_texts"]]
             for info in infos
         ]
-        for state, act, rew, next_state, valids, done, transition, cost in zip(
+        for (
+            state,
+            act,
+            rew,
+            valid_action_id,
+            next_state,
+            valids,
+            done,
+            transition,
+            cost,
+        ) in zip(
             states,
             action_ids,
             rewards,
+            valid_ids,
             next_states,
             next_valids,
             dones,
@@ -281,7 +292,16 @@ def train(
         ):
             if len(act) > 0:  # not [] (i.e. reset)
                 transition.append(
-                    Transition(state, act, rew, next_state, valids, done, cost)
+                    Transition(
+                        state=state,
+                        act=act,
+                        reward=rew,
+                        valid_acts=valid_action_id,
+                        next_state=next_state,
+                        next_acts=valids,
+                        done=done,
+                        cost=cost,
+                    )
                 )
                 agent.observe(transition[-1])  # , is_prior=(rew != 0)
 
@@ -294,9 +314,6 @@ def train(
             tb.logkv("Step", step)
             tb.dumpkvs()
         if step % update_freq == 0:
-            # For PPO_LLM, collect trajectories before update
-            if args.agent_type == "PPO_LLM" and hasattr(agent, "collect_trajectories"):
-                agent._collect_trajectories(args.batch_size)
             loss = agent.update()
             tb.logkv("Loss", loss)
         if step == 1 or step % checkpoint_freq == 0:
