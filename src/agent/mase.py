@@ -71,9 +71,9 @@ class PPOMASEAgent(PPOLLMAgent):
                     )
                 )
             return (
-                self.emergency_action
-                if not logprob_flag
-                else (self.emergency_action, float("-inf"))
+                (self.emergency_action, float("-inf"))
+                if logprob_flag
+                else self.emergency_action
             )
 
         # Filter the distribution to only include safe actions
