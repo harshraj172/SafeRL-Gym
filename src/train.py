@@ -162,6 +162,24 @@ def parse_args():
     return parser.parse_args()
 
 
+def log_episode_stats(tb, info, step):
+    tb.logkv_mean("EpisodeScore", info["game_state"]["points"])
+    tb.logkv("EpisodeLength", step)
+    tb.logkv("NumAch", len(info["game_state"]["unlocked_achievements"]))
+    tb.logkv("Cost", info["game_state"]["cumulative_cost"])
+    tb.logkv("Reward", info["game_state"]["reward"])
+
+
+def log_step_stats(log, step, action_str, reward, info, done):
+    log(f">> Action{step}: {action_str}")
+    log(
+        f"Reward{step}: {reward}, Score {info['game_state']['points']}, Num ach {len(info['game_state']['unlocked_achievements'])}, Done {done}\n"
+    )
+    log(
+        f"Safety cost {info['game_state']['cumulative_cost']}, Reward {info['game_state']['reward']}"
+    )
+
+
 def train(
     agent,
     envs,
@@ -190,9 +208,6 @@ def train(
     # Convert raw text obs -> agent states
     states = build_state(agent._tokenize, obs, infos)
 
-    # print(obs, rewards, dones, infos, transitions)
-    # print(states)
-
     # Each environment must provide the valid actions in some form
     valid_ids = [
         [agent._tokenize(a) for a in info["game_state"]["choice_texts"]]
@@ -219,16 +234,11 @@ def train(
                 max_score = env.curr_points()
                 agent.memory.clear_alpha() if hasattr(agent, "memory") else None
             if done:
-                tb.logkv_mean("EpisodeScore", info["game_state"]["points"])
-                tb.logkv("EpisodeLength", step)
-                tb.logkv("NumAch", len(info["game_state"]["unlocked_achievements"]))
-                tb.logkv("Cost", info["game_state"]["cumulative_cost"])
-                tb.logkv("Reward", info["game_state"]["reward"])
+                log_episode_stats(tb, info, step)
                 if env.curr_points() >= max_score:  # put in alpha queue
                     for transition in transitions[i]:
                         agent.observe(transition, is_prior=True)
                 ob, info = env.reset(seed=args.seed)
-                # agent.reset(i)
                 next_obs, next_rewards, next_dones, next_infos = (
                     next_obs + [ob],
                     next_rewards + [0],
@@ -244,23 +254,8 @@ def train(
                 )
         rewards, dones, infos = next_rewards, next_dones, next_infos
 
-        # continue to log envs[0]
-        log(">> Action{}: {}".format(step, action_strs[0]))
-        log(
-            "Reward{}: {}, Score {}, Num ach {}, Done {}\n".format(
-                step,
-                rewards[0],
-                infos[0]["game_state"]["points"],
-                len(infos[0]["game_state"]["unlocked_achievements"]),
-                dones[0],
-            )
-        )
-        log(
-            "Safety cost {}, Reward {}".format(
-                infos[0]["game_state"]["cumulative_cost"],
-                infos[0]["game_state"]["reward"],
-            )
-        )
+        # Logging for envs[0]
+        log_step_stats(log, step, action_strs[0], rewards[0], infos[0], dones[0])
 
         next_states = build_state(
             agent._tokenize, next_obs, infos, prev_obs=obs, prev_acts=action_strs
