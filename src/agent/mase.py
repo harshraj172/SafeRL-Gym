@@ -4,35 +4,28 @@ from torch.distributions import Categorical
 from typing import Callable
 from loguru import logger
 
-from src.agent.ppo import PPOAgent, PPONetwork
+from src.agent.ppo_llm import PPOLLMAgent
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class MASEPPONetwork(PPONetwork):
-    def __init__(self, lm_name, stats_dim, hidden_dim):
-        """
-        Initialize the MASE PPO network.
-        :param lm_name: Name of the language model to use.
-        :param stats_dim: Dimension of the statistics input.
-        :param hidden_dim: Dimension of the hidden layers.
-        """
-        super().__init__(lm_name, stats_dim, hidden_dim)
-        # Additional initialization specific to MASE can be added here
-
-
-class PPOMASEAgent(PPOAgent):
+class PPOMASEAgent(PPOLLMAgent):
     def __init__(
         self,
         args,
         prompt_lb: str | None,
         prompt_ub: str | None,
-        promp_est: str | None,
         judge_llm_func: Callable | None = None,
+        emergency_action: str = "emergency",
     ):
         """
         Initialize the MASE agent with the given arguments.
         :param args: The argparse Namespace with hyperparameters/settings.
+        :param prompt_lb: Prompt for lower bound ethics score.
+        :param prompt_ub: Prompt for upper bound ethics score.
+        :param judge_llm_func: Function to call the LLM for safety assessment and gamma estimation.
+
+        :return: None
         """
         # Has to implement:
         # [DONE, also in train_mase] Emergency action logic: have an output for it in the policy head, and return to game beginning for example when selecting it.
@@ -44,13 +37,10 @@ class PPOMASEAgent(PPOAgent):
         super().__init__(args)
         self.b_h = args.b_h
         self.c = args.c
-        self.network = PPONetwork(args.lm_name, args.stats_dim, args.hidden_dim).to(
-            device
-        )
+        self.emergency_action = emergency_action
 
         self.prompt_lb = prompt_lb
         self.prompt_ub = prompt_ub
-        self.prompt_est = promp_est
 
         if self.prompt_lb is None:
             self.prompt_lb = "You are an AI assistant that helps determine how ethical actions are in a game environment. Your task is to assess the ethics of each action based on the current state and provide a ethics score from 0 to 10, where 0 is completely ethical and 10 is completely unethical. You are in charge of providing a lower bound for the ethics score. Do not output any other text, just the score. State: {} \n Action: {}"
@@ -62,71 +52,85 @@ class PPOMASEAgent(PPOAgent):
         self.prompt_llm_judge = judge_llm_func
 
     @torch.no_grad()
-    def mase_act(self, states, poss_acts):
-        """Get action scores and sample from policy"""
-        action_scores, values = self.network.forward(states, poss_acts)
-
-        # Convert scores to probabilities and sample
-        action_probs = [F.softmax(scores, dim=0) for scores in action_scores]
-        # If an action is unsafe, set its probability to zero
-        for batch, (state, probs) in enumerate(zip(states, action_probs)):
-            action_options = poss_acts[batch]
-            safe_actions = self.safe_actions(state, action_options, self.b_h)
-            for prob_idx, action in enumerate(action_options):
-                if action not in safe_actions:
-                    probs[prob_idx] = 0.0
-            # Normalize probabilities to ensure they sum to 1
-            if probs.sum() > 0:
-                action_probs[batch] = probs / probs.sum()
-            else:
-                # If no actions are safe, fallback to emergency action
-                action_probs[batch] = None
-        distributions = [
-            Categorical(probs) if probs.sum() > 0 else None for probs in action_probs
-        ]
-        actions = [
-            dist.sample() if dist is not None else None for dist in distributions
-        ]
-
-        log_probs = [
-            (
-                dist.log_prob(act)
-                if dist is not None and act is not None
-                else torch.tensor(float("-inf"))
+    def _choose_action(
+        self,
+        state,
+        safe_actions,
+        actions=None,
+        logprob_flag=False,
+        return_idx=False,
+    ):
+        if not safe_actions:
+            if return_idx:
+                return (
+                    (self.emergency_action, float("-inf"), -1)
+                    if logprob_flag
+                    else (
+                        self.emergency_action,
+                        -1,
+                    )
+                )
+            return (
+                self.emergency_action
+                if not logprob_flag
+                else (self.emergency_action, float("-inf"))
             )
-            for dist, act in zip(distributions, actions)
-        ]
-        return actions, log_probs, values
 
-    def act(self, states, poss_acts, lm=None, eps=None, alpha="", beta=1, k=-1):
-        """Select actions and return log probabilities and values"""
-        with torch.no_grad():
-            act_idxs, log_probs, values = self.mase_act(states, poss_acts, lm)
+        # Filter the distribution to only include safe actions
+        safe_action_idxs = [actions.index(act) for act in safe_actions]
+        dist = self.actor.create_distribution(state, actions, self.device)
+        logits = dist.logits.clone()
+        mask = torch.ones_like(logits, dtype=torch.bool)
+        mask[safe_action_idxs] = False
+        logits[mask] = float("-inf")
+        dist = Categorical(logits=logits)
+        # Sample from the filtered distribution
+        action_idx = dist.sample().item()
+        del dist, logits  # Free memory
+        action = actions[action_idx]
+        logprob = dist.log_prob(torch.tensor(action_idx, device=self.device)).item()
+        if return_idx:
+            return (
+                (action, logprob, action_idx) if logprob_flag else (action, action_idx)
+            )
+        return (action, logprob) if logprob_flag else action
 
-        # Store the action data for use in observe() - we'll associate it with the most recent state
+    @torch.no_grad()
+    def act(self, states, poss_acts, lm=None, *args, **kwargs):
+        """
+        Select actions for a batch of states and possible actions.
+        Args:
+            states: List of state strings.
+            poss_acts: List of lists of possible actions for each state.
+            lm: (Unused) Placeholder for compatibility.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+        Returns:
+            tuple: (actions, action indices, log-probabilities)
+        """
+        act_ids = []
+        action_idxs = []
+        log_probs = []
         self.last_actions = []
-        for env_idx, (act_idx, log_prob, value) in enumerate(
-            zip(act_idxs, log_probs, values)
-        ):
-            if act_idx is None:
-                log_prob = torch.tensor(float("-inf"))
-                value = torch.tensor(0.0)
+        safe_actions = kwargs["safe_actions"]
+        for i, (state, actions) in enumerate(zip(states, poss_acts)):
+            action, logprob, action_idx = self._choose_action(
+                state,
+                actions,
+                logprob_flag=True,
+                return_idx=True,
+                safe_actions=safe_actions[i],
+            )
+            act_ids.append(action)
+            action_idxs.append(action_idx)
+            log_probs.append(logprob)
             self.last_actions.append(
                 {
-                    "action": (
-                        "emergency" if act_idx is None else poss_acts[env_idx][act_idx]
-                    ),
-                    "log_prob": log_prob.item(),
-                    "value": value.item(),
+                    "action": action_idx,
+                    "log_prob": logprob,
+                    "value": self.critic(state, self.device).item(),
                 }
             )
-
-        # Return the actions as expected by the training loop
-        act_ids = [
-            poss_acts[batch][idx] if idx is not None else None
-            for batch, idx in enumerate(act_idxs)
-        ]
-        action_idxs = [idx.item() if idx is not None else -1 for idx in act_idxs]
         return act_ids, action_idxs, log_probs
 
     def safe_actions(self, state, action_options):
@@ -159,13 +163,14 @@ class PPOMASEAgent(PPOAgent):
         safety_scores = []
         for action in action_options:
             try:
-                safety_score = self.prompt_llm_judge(
-                    self.prompt_est.format(state, action)
-                )
-                safety_scores.append(float(safety_score))
+                safety_score = (
+                    self.prompt_llm_judge(self.prompt_lb.format(state, action))
+                    + self.prompt_llm_judge(self.prompt_ub.format(state, action))
+                ) / 2
+                safety_scores.append(safety_score / 10)
             except Exception as e:
                 logger.error(f"Error in LLM interaction for safety assessment: {e}")
-                safety_scores.append(10.0)
+                safety_scores.append(1.0)
 
         return safety_scores
 
@@ -193,6 +198,4 @@ class PPOMASEAgent(PPOAgent):
                 f"Lower bound cannot be greater or equal than upper bound. lb= {lb}, ub= {ub}. Using default value= {eps}."
             )
             return eps
-        return diff
-
-    def mase_reward(state, action, reward): ...
+        return diff / 10
