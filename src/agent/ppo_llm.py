@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, AutoModelForCausalLM
 from src.agent.base import BaseAgent
 from src.env.machiavelli.utils import clean
 
@@ -54,14 +54,8 @@ class ActorNetwork(nn.Module):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
-
-    def _set_device(self, device):
-        """
-        Move the model to the specified device.
-        Args:
-            device: torch.device to move the model to.
-        """
-        self.model = self.model.to(device)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def forward(self, state: str, actions: list[str], device, requires_grad=False):
         """
@@ -74,16 +68,13 @@ class ActorNetwork(nn.Module):
         Returns:
             torch.Tensor: Log-probabilities for each action.
         """
-        self._set_device(device)
-        assert self.model.device.type == device.type, (
-            f"Actor network device type {self.model.device.type} does not match expected device type {device.type}"
-        )
         batch_size = len(actions)
-        states = [state] * batch_size
+        states = [state.state] * batch_size
         state_tokens = self.tokenizer(states, return_tensors="pt", padding=True)
         action_tokens = self.tokenizer(
             actions, return_tensors="pt", padding="longest", padding_side="right"
         )
+
         state_tokens = {k: v.to(device) for k, v in state_tokens.items()}
         action_tokens = {k: v.to(device) for k, v in action_tokens.items()}
         action_tokens["input_ids"] = action_tokens["input_ids"][:, 1:] 
@@ -113,8 +104,7 @@ class ActorNetwork(nn.Module):
         else:
             with torch.no_grad():
                 outputs = self.model(**inputs)
-        logits = outputs.logits
-        logits = torch.clamp(logits, min=-100, max=100)
+        logits = outputs.logits / outputs.logits.shape[1]  # Scale logits to avoid overflow
         k = state_tokens["input_ids"].shape[1]
         m = action_tokens["input_ids"].shape[1]
         next_token_logits = logits[:, k - 1 : -1, :]
@@ -134,7 +124,7 @@ class ActorNetwork(nn.Module):
         action_token_logits = action_token_logits * action_tokens["attention_mask"]
         return action_token_logits.sum(dim=-1)
 
-    def create_distribution(self, state: str, actions: list[str], device):
+    def create_distribution(self, state: str, actions: list[str], device, requires_grad=False):
         """
         Create a categorical distribution over actions given the state.
         Args:
@@ -144,7 +134,7 @@ class ActorNetwork(nn.Module):
         Returns:
             torch.distributions.Categorical: Distribution over actions.
         """
-        logits = self.forward(state, actions, device)
+        logits = self.forward(state, actions, device, requires_grad=requires_grad)
         return torch.distributions.Categorical(logits=logits)
 
 
@@ -211,11 +201,7 @@ class CriticNetwork(nn.Module):
         Returns:
             torch.Tensor: Estimated value of the state.
         """
-        self._set_device(device)
-        assert self.model.device.type == device.type, (
-            f"Critic network device type {self.model.device.type} does not match expected device type {device.type}"
-        )
-        inputs = self.tokenizer(state, return_tensors="pt")
+        inputs = self.tokenizer(state.state, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
         with torch.no_grad():
             outputs = self.model(**inputs, output_hidden_states=True)
@@ -259,24 +245,32 @@ class PPOLLMAgent(BaseAgent):
         actor_model = (
             args.actor_model
             if hasattr(args, "actor_model")
-            else AutoModel.from_pretrained(args.lm_name)
+            else AutoModelForCausalLM.from_pretrained(args.lm_name)
         )
+        # freeze every layer except the last layer
+        for name, param in actor_model.named_parameters():
+            if '29' in name:
+                print(f"Unfreezing parameter: {name}")
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
         critic_model = (
             args.critic_model
             if hasattr(args, "critic_model")
             else AutoModel.from_pretrained(args.lm_name)
         )
 
-        self.actor = ActorNetwork(actor_model, self.tokenizer)
+        self.actor = ActorNetwork(actor_model, self.tokenizer).to(self.device)
         self.critic = CriticNetwork(
             critic_model, self.tokenizer, input_dim=actor_model.config.hidden_size
-        )
+        ).to(self.device)
 
         self.env = args.env
 
         self.gamma = kwargs.get("gamma", 0.99)
         self.clip_epsilon = kwargs.get("clip_epsilon", 0.1)
         self.lambda_gae = kwargs.get("lambda_gae", 0.95)
+        self.entropy_coef = kwargs.get("entropy_coef", 0.001)
 
         params = list(self.actor.parameters()) + list(self.critic.parameters())
         self.optimizer = torch.optim.Adam(
@@ -298,16 +292,17 @@ class PPOLLMAgent(BaseAgent):
         Returns:
             dict: Tokenized tensors with input_ids and attention_mask
         """
-        if isinstance(text, str):
-            text = [text]
+        return text
+        # if isinstance(text, str):
+        #     text = [text]
 
-        encoding = self.tokenizer(
-            [clean(t) for t in text], padding=True, truncation=True, return_tensors="pt"
-        ).to(self.device)
+        # encoding = self.tokenizer(
+        #     [clean(t) for t in text], padding=True, truncation=True, return_tensors="pt"
+        # ).to(self.device)
 
-        encoding["length"] = encoding["attention_mask"].sum(dim=1)
+        # encoding["length"] = encoding["attention_mask"].sum(dim=1)
 
-        return encoding
+        # return encoding
 
     @torch.no_grad()
     def act(self, states, poss_acts, lm=None, *args, **kwargs):
@@ -384,6 +379,13 @@ class PPOLLMAgent(BaseAgent):
             self.completed_episodes.append([])
             self.episode_buffer = []
 
+    def compute_actions(self, s, va, a):
+        dist = self.actor.create_distribution(s, va, self.device, requires_grad=True)
+        if a > len(va) - 1:
+            # Action index {a} out of bounds for valid actions {va}.
+            return torch.tensor(0.0, device=self.device), torch.tensor(0.0, device=self.device)
+        return dist.log_prob(a), dist.entropy()
+
     def update(self):
         """
         Perform PPO update using completed episodes.
@@ -413,12 +415,17 @@ class PPOLLMAgent(BaseAgent):
                 [t.returns for t in episode], device=self.device, dtype=torch.float32
             )
 
-            logprobs = torch.stack(
-                [
-                    self.actor.create_distribution(s, va, self.device).log_prob(a)
-                    for s, va, a in zip(states, valid_actions, actions)
-                ]
-            )
+            action_logprob_entropies = [
+                # logprob, entropy
+                self.compute_actions(s, va, a)
+                for s, va, a in zip(states, valid_actions, actions)
+            ]
+            logprobs = torch.stack([
+                logprob for logprob, _ in action_logprob_entropies
+            ])
+            entropies = torch.stack([
+                entropy for _, entropy in action_logprob_entropies
+            ])
             values = torch.stack([self.critic(s, self.device) for s in states])
             ratio = torch.exp(logprobs - old_log_probs)
             surrogate1 = ratio * advantages
@@ -428,12 +435,18 @@ class PPOLLMAgent(BaseAgent):
             )
             policy_loss = -torch.min(surrogate1, surrogate2).mean()
             value_loss = F.mse_loss(values, returns)
-            loss = policy_loss + value_loss
+            entropy_loss = self.entropy_coef * entropies.mean()
+            loss = policy_loss + value_loss - entropy_loss
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             total_loss += loss.item()
         self.completed_episodes = [[]]
+
+        # Force garbage collection
+        import gc
+        gc.collect()
+
         return total_loss
 
     def _choose_action(self, state, actions=None, logprob_flag=False, return_idx=False):
