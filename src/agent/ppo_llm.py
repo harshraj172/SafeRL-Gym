@@ -216,7 +216,7 @@ class CriticNetwork(nn.Module):
         """
 
         # strings
-        
+
         inputs = self.tokenizer(x, return_tensors="pt", padding=True, truncation=True)
         inputs = {k: v.to(device) for k, v in inputs.items()}
         embed = self.embedding(**inputs)["last_hidden_state"].permute(1, 0, 2).detach()
@@ -243,7 +243,7 @@ class CriticNetwork(nn.Module):
         # Handle different input formats
         state_out = self.packed_rnn(state_data, self.state_encoder, device)
 
-        # state_out = state_out.sum(dim=-1) / state_out.shape[-1]  # Average over the hidden dimension 
+        # state_out = state_out.sum(dim=-1) / state_out.shape[-1]  # Average over the hidden dimension
 
         # Ensure all outputs are on the correct device
         state_out = state_out.to(device)
@@ -293,19 +293,30 @@ class PPOLLMAgent(BaseAgent):
             if hasattr(args, "actor_model")
             else AutoModel.from_pretrained(args.lm_name)
         )
-        critic_model = (
-            args.critic_model
-            if hasattr(args, "critic_model")
-            else AutoModel.from_pretrained(args.lm_name)
-        )
+        # critic_model = (
+        #     args.critic_model
+        #     if hasattr(args, "critic_model")
+        #     else AutoModel.from_pretrained(args.lm_name)
+        # )
 
         self.actor = ActorNetwork(actor_model, self.tokenizer)
         # self.critic = CriticNetwork(
         #     critic_model, self.tokenizer, input_dim=actor_model.config.hidden_size
         # )
-        self.critic = CriticNetwork(critic_model, self.tokenizer)
+        # self.critic = CriticNetwork(critic_model, self.tokenizer)
+        
+        embedding = AutoModel.from_pretrained(
+            "microsoft/deberta-v3-xsmall", output_hidden_states=True
+        )
+        
+        self.critic = CriticNetwork(
+            embedding=embedding,
+            tokenizer=AutoTokenizer.from_pretrained(
+                "microsoft/deberta-v3-xsmall", model_max_length=512
+            ),
+        )
 
-        # rekove this
+        # remove this
         self.env = args.env
 
         self.gamma = kwargs.get("gamma", 0.99)
