@@ -427,7 +427,7 @@ class PPOLLMAgent(BaseAgent):
         self.completed_episodes[-1].append(ppo_llm_transition)
         if transition.done or len(self.episode_buffer) >= self.max_segment_length:
             self.completed_episodes.append([])
-            self.episode_buffer = []
+            self.episode_buffer[env_idx] = []
 
     def update(self):
         """
