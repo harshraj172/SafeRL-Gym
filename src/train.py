@@ -7,7 +7,7 @@ USAGE:
     python -m src.train --max_steps 10000 --game kung-fu --agent_type DRRN --output_dir ./results/Machiavelli/DRRN/microsoft_deberta-v3-xsmall/kung-fu
 
     PPO LLM: 
-    python -m src.train --max_steps 1000 --game kung-fu --agent_type PPO_LLM --lm_name google/gemma-3-1b-it --output_dir ./results/Machiavelli/PPO_LLM/google_gemma-3-1b-it/kung-fu
+    python -m src.train --max_steps 10000 --game kung-fu --agent_type PPO_LLM --lm_name google/gemma-3-1b-it --output_dir ./results/Machiavelli/PPO_LLM/google_gemma-3-1b-it/kung-fu
 """
 
 import os
@@ -206,7 +206,7 @@ def train(
         
         # Advance
         obs, states, valid_ids = next_obs, next_states, next_valids
-
+        print(f"Valid actions: {[a for a in info['game_state']['choice_texts'] for info in infos]}")
         if step % log_freq == 0:
             tb.logkv("FPS", round((step * args.num_envs) / (time.time() - start), 2))
             tb.logkv("Max score seen", max_score)

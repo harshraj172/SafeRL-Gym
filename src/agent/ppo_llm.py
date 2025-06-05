@@ -86,12 +86,13 @@ class ActorNetwork(nn.Module):
         )
         state_tokens = {k: v.to(device) for k, v in state_tokens.items()}
         action_tokens = {k: v.to(device) for k, v in action_tokens.items()}
-        action_tokens["input_ids"] = action_tokens["input_ids"][:, 1:] 
+        action_tokens["input_ids"] = action_tokens["input_ids"][:, 1:]
         eos_token_id = self.tokenizer.eos_token_id
-        eos_tensor = torch.full((batch_size, 1), eos_token_id, dtype=torch.long, device=device)
+        eos_tensor = torch.full(
+            (batch_size, 1), eos_token_id, dtype=torch.long, device=device
+        )
         action_tokens["input_ids"] = torch.cat(
-            (action_tokens["input_ids"], eos_tensor),
-            dim=1
+            (action_tokens["input_ids"], eos_tensor), dim=1
         )
         # tokenized_length = action_tokens["attention_mask"].sum(dim=1)
         # action_tokens["input_ids"][torch.arange(batch_size, device=device), tokenized_length - 1] = (
@@ -125,7 +126,7 @@ class ActorNetwork(nn.Module):
         batch_indices = torch.arange(action_token_indices.shape[0], device=device)
         token_indices = torch.arange(m, device=device)
         # action_token_logprobs_ = next_token_logprobs[
-            # batch_indices.unsqueeze(1), token_indices.unsqueeze(0), action_token_indices
+        # batch_indices.unsqueeze(1), token_indices.unsqueeze(0), action_token_indices
         # ]
         action_token_logits = next_token_logits[
             batch_indices.unsqueeze(1), token_indices.unsqueeze(0), action_token_indices
@@ -146,7 +147,6 @@ class ActorNetwork(nn.Module):
         """
         logits = self.forward(state, actions, device)
         return torch.distributions.Categorical(logits=logits)
-
 
     def create_conditional_logprobs(
         self, state: str, actions: list[str], device, probs=False, requires_grad=True
@@ -174,57 +174,89 @@ class ActorNetwork(nn.Module):
 
 class CriticNetwork(nn.Module):
     """
-    Critic network for PPO-LLM agent.
-    Estimates the value of a given state using a language model and a small neural network.
+    Enhanced Critic network for PPO-LLM agent with GRU encoders.
+    Estimates the value of a given state using multiple GRU encoders for different state aspects.
     """
 
-    def __init__(self, model, tokenizer, input_dim):
+    def __init__(self, tokenizer, embedding, hidden_dim=128):
         super().__init__()
-        self.model = model
         self.tokenizer = tokenizer
-        self.attn_proj = nn.Linear(model.config.hidden_size, 1, bias=False)
-        self.simple_nn = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(input_dim, 64),
+        # Language model for embeddings
+        self.embedding = embedding
+        embedding_dim = self.embedding.get_input_embeddings().embedding_dim
+        # GRU encoders for different state aspects (similar to DRRN)
+        self.state_encoder = nn.GRU(embedding_dim, hidden_dim, num_layers=3)
+
+        # Value estimation layers
+        self.hidden = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(64, 1),
         )
+        self.value_estimator = nn.Linear(hidden_dim, 1)
+        self.hidden_dim = hidden_dim
 
     def _set_device(self, device):
         """
-        Move the model and value head to the specified device.
+        Move the model components to the specified device.
         Args:
             device: torch.device to move the model to.
         """
-        self.model = self.model.to(device)
-        self.simple_nn = self.simple_nn.to(device)
-        self.attn_proj = self.attn_proj.to(device)
+        self.embedding = self.embedding.to(device)
+        self.state_encoder = self.state_encoder.to(device)
+        self.hidden = self.hidden.to(device)
+        self.value_estimator = self.value_estimator.to(device)
 
-    def forward(self, state: str, device):
+    def packed_rnn(self, x, rnn, device):
         """
-        Estimate the value of the given state.
+        Runs the provided rnn on the input x. Takes care of packing/unpacking.
+        x: list of unpadded input sequences or single sequence
+        Returns a tensor of size: batch_size x hidden_dim
+        """
+
+        # strings
+        
+        inputs = self.tokenizer(x, return_tensors="pt", padding=True, truncation=True)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        embed = self.embedding(**inputs)["last_hidden_state"].permute(1, 0, 2).detach()
+        out, _ = rnn(embed)
+
+        # Get the last output for each sequence
+        if len(out.shape) == 3:
+            # Take the last timestep output
+            out = out[-1]  # [batch, hidden_dim]
+
+        return out
+
+    def forward(self, state_data, device):
+        """
+        Estimate the value of the given state using GRU encoders.
         Args:
-            state: Input state as a string.
+            state_data: string (single state description)
             device: torch.device to run computation on.
         Returns:
             torch.Tensor: Estimated value of the state.
         """
         self._set_device(device)
-        assert self.model.device.type == device.type, (
-            f"Critic network device type {self.model.device.type} does not match expected device type {device.type}"
-        )
-        inputs = self.tokenizer(state, return_tensors="pt")
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        with torch.no_grad():
-            outputs = self.model(**inputs, output_hidden_states=True)
-        last_hidden = outputs.hidden_states[-1]  # [batch, seq_len, hidden]
-        scores = self.attn_proj(last_hidden)  # [batch, seq_len, 1]
-        weights = torch.softmax(scores.squeeze(-1), dim=1)  # [batch, seq_len]
-        pooled = torch.einsum("bsh,bs->bh", last_hidden, weights.to(device))
-        x = self.simple_nn(pooled)
-        return x.flatten()[0]
+
+        # Handle different input formats
+        state_out = self.packed_rnn(state_data, self.state_encoder, device)
+
+        # state_out = state_out.sum(dim=-1) / state_out.shape[-1]  # Average over the hidden dimension 
+
+        # Ensure all outputs are on the correct device
+        state_out = state_out.to(device)
+
+        # Handle batch dimension
+        if len(state_out.shape) == 1:
+            state_out = state_out.unsqueeze(0)
+
+        # Pass through final layers
+        z = self.hidden(state_out)
+        value = self.value_estimator(z)
+
+        return value.flatten()[0]
 
 
 class PPOLLMAgent(BaseAgent):
@@ -268,10 +300,12 @@ class PPOLLMAgent(BaseAgent):
         )
 
         self.actor = ActorNetwork(actor_model, self.tokenizer)
-        self.critic = CriticNetwork(
-            critic_model, self.tokenizer, input_dim=actor_model.config.hidden_size
-        )
+        # self.critic = CriticNetwork(
+        #     critic_model, self.tokenizer, input_dim=actor_model.config.hidden_size
+        # )
+        self.critic = CriticNetwork(critic_model, self.tokenizer)
 
+        # rekove this
         self.env = args.env
 
         self.gamma = kwargs.get("gamma", 0.99)

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import torch
 from transformers import PreTrainedTokenizerBase, PretrainedConfig, PreTrainedModel
 from transformers import BatchEncoding
+from transformers import AutoModel, AutoTokenizer
 from src.env.machiavelli.machiavelli_env import MachiavelliEnv
 from src.agent.ppo_llm import ActorNetwork, CriticNetwork, PPOLLMAgent
 
@@ -170,7 +171,10 @@ def test_mock_actornetwork_forward(mock_resources):
 
 def test_mock_criticnetwork_forward(mock_resources):
     device, tokenizer, model, config = mock_resources
-    critic = CriticNetwork(model, tokenizer, config.hidden_size)
+     # input_dim = config.hidden_size
+    embedding = AutoModel.from_pretrained('microsoft/deberta-v3-xsmall', output_hidden_states=True)
+
+    critic = CriticNetwork(embedding=embedding, tokenizer=tokenizer)
     state = "Once upon a time , there was a king ."
     output = critic(state, device)
     assert isinstance(output, torch.Tensor)
@@ -203,8 +207,10 @@ def test_gemma_actornetwork_conditional_logprobs(mock_resources):
 
 def test_mock_criticnetwork_repr(mock_resources):
     _, tokenizer, model, config = mock_resources
-    input_dim = config.hidden_size
-    critic = CriticNetwork(model, tokenizer, input_dim)
+    # input_dim = config.hidden_size
+    embedding = AutoModel.from_pretrained('microsoft/deberta-v3-xsmall', output_hidden_states=True)
+
+    critic = CriticNetwork(embedding=embedding, tokenizer=tokenizer)
     summary = str(critic)
     print(summary)
     assert "CriticNetwork" in summary or "simple_nn" in summary
@@ -212,8 +218,10 @@ def test_mock_criticnetwork_repr(mock_resources):
 
 def test_gemma_criticnetwork_forward(mock_resources):
     device, tokenizer, model, config = mock_resources
-    input_dim = config.hidden_size
-    critic = CriticNetwork(model, tokenizer, input_dim)
+     # input_dim = config.hidden_size
+    embedding = AutoModel.from_pretrained('microsoft/deberta-v3-xsmall', output_hidden_states=True)
+
+    critic = CriticNetwork(embedding=embedding, tokenizer=tokenizer)
     state = "Once upon a time, there was a king."
     output = critic(state, device)
     print(output)
