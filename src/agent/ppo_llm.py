@@ -57,7 +57,7 @@ class ActorNetwork(nn.Module):
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-    def forward(self, state: str, actions: list[str], device, requires_grad=False):
+    def forward(self, state: str, actions: list[str], device, requires_grad=True):
         """
         Compute log-probabilities for each action given the state.
         Args:
@@ -104,7 +104,7 @@ class ActorNetwork(nn.Module):
         else:
             with torch.no_grad():
                 outputs = self.model(**inputs)
-        logits = outputs.logits / outputs.logits.shape[1]  # Scale logits to avoid overflow
+        logits = outputs.logits  # Scale logits to avoid overflow
         k = state_tokens["input_ids"].shape[1]
         m = action_tokens["input_ids"].shape[1]
         next_token_logits = logits[:, k - 1 : -1, :]
@@ -122,9 +122,9 @@ class ActorNetwork(nn.Module):
         ]
         # action_token_logprobs = action_token_logprobs_ * action_tokens["attention_mask"]
         action_token_logits = action_token_logits * action_tokens["attention_mask"]
-        return action_token_logits.sum(dim=-1)
+        return action_token_logits.sum(dim=-1) / 100.0
 
-    def create_distribution(self, state: str, actions: list[str], device, requires_grad=False):
+    def create_distribution(self, state: str, actions: list[str], device):
         """
         Create a categorical distribution over actions given the state.
         Args:
@@ -134,7 +134,7 @@ class ActorNetwork(nn.Module):
         Returns:
             torch.distributions.Categorical: Distribution over actions.
         """
-        logits = self.forward(state, actions, device, requires_grad=requires_grad)
+        logits = self.forward(state, actions, device)
         return torch.distributions.Categorical(logits=logits)
 
 
@@ -161,56 +161,90 @@ class ActorNetwork(nn.Module):
         else:
             return conditional_logprobs
 
-
 class CriticNetwork(nn.Module):
     """
-    Critic network for PPO-LLM agent.
-    Estimates the value of a given state using a language model and a small neural network.
+    Enhanced Critic network for PPO-LLM agent with GRU encoders.
+    Estimates the value of a given state using multiple GRU encoders for different state aspects.
     """
 
-    def __init__(self, model, tokenizer, input_dim):
+    def __init__(self, tokenizer, embedding, hidden_dim=128):
         super().__init__()
-        self.model = model
         self.tokenizer = tokenizer
-        self.attn_proj = nn.Linear(model.config.hidden_size, 1, bias=False)
-        self.simple_nn = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(input_dim, 64),
+        # Language model for embeddings
+        self.embedding = embedding
+        embedding_dim = self.embedding.get_input_embeddings().embedding_dim
+        # GRU encoders for different state aspects (similar to DRRN)
+        self.state_encoder = nn.GRU(embedding_dim, hidden_dim, num_layers=3)
+
+        # Value estimation layers
+        self.hidden = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(64, 1),
         )
+        self.value_estimator = nn.Linear(hidden_dim, 1)
+        self.hidden_dim = hidden_dim
 
     def _set_device(self, device):
         """
-        Move the model and value head to the specified device.
+        Move the model components to the specified device.
         Args:
             device: torch.device to move the model to.
         """
-        self.model = self.model.to(device)
-        self.simple_nn = self.simple_nn.to(device)
-        self.attn_proj = self.attn_proj.to(device)
+        self.embedding = self.embedding.to(device)
+        self.state_encoder = self.state_encoder.to(device)
+        self.hidden = self.hidden.to(device)
+        self.value_estimator = self.value_estimator.to(device)
 
-    def forward(self, state: str, device):
+    def packed_rnn(self, x, rnn, device):
         """
-        Estimate the value of the given state.
+        Runs the provided rnn on the input x. Takes care of packing/unpacking.
+        x: list of unpadded input sequences or single sequence
+        Returns a tensor of size: batch_size x hidden_dim
+        """
+
+        # strings
+
+        inputs = self.tokenizer(x.state, return_tensors="pt", padding=True, truncation=True).to(device)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        embed = self.embedding(**inputs)["last_hidden_state"].permute(1, 0, 2).detach()
+        out, _ = rnn(embed)
+
+        # Get the last output for each sequence
+        if len(out.shape) == 3:
+            # Take the last timestep output
+            out = out[-1]  # [batch, hidden_dim]
+
+        return out
+
+    def forward(self, state_data, device):
+        """
+        Estimate the value of the given state using GRU encoders.
         Args:
-            state: Input state as a string.
+            state_data: string (single state description)
             device: torch.device to run computation on.
         Returns:
             torch.Tensor: Estimated value of the state.
         """
-        inputs = self.tokenizer(state.state, return_tensors="pt")
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        with torch.no_grad():
-            outputs = self.model(**inputs, output_hidden_states=True)
-        last_hidden = outputs.hidden_states[-1]  # [batch, seq_len, hidden]
-        scores = self.attn_proj(last_hidden)  # [batch, seq_len, 1]
-        weights = torch.softmax(scores.squeeze(-1), dim=1)  # [batch, seq_len]
-        pooled = torch.einsum("bsh,bs->bh", last_hidden, weights.to(device))
-        x = self.simple_nn(pooled)
-        return x.flatten()[0]
+
+        # Handle different input formats
+        state_out = self.packed_rnn(state_data, self.state_encoder, device)
+
+        # state_out = state_out.sum(dim=-1) / state_out.shape[-1]  # Average over the hidden dimension
+
+        # Ensure all outputs are on the correct device
+        state_out = state_out.to(device)
+
+        # Handle batch dimension
+        if len(state_out.shape) == 1:
+            state_out = state_out.unsqueeze(0)
+
+        # Pass through final layers
+        z = self.hidden(state_out)
+        value = self.value_estimator(z)
+
+        return value.flatten()[0]
 
 
 class PPOLLMAgent(BaseAgent):
@@ -247,22 +281,17 @@ class PPOLLMAgent(BaseAgent):
             if hasattr(args, "actor_model")
             else AutoModelForCausalLM.from_pretrained(args.lm_name)
         )
-        # freeze every layer except the last layer
-        for name, param in actor_model.named_parameters():
-            if '29' in name:
-                print(f"Unfreezing parameter: {name}")
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
-        critic_model = (
-            args.critic_model
-            if hasattr(args, "critic_model")
-            else AutoModel.from_pretrained(args.lm_name)
-        )
 
         self.actor = ActorNetwork(actor_model, self.tokenizer).to(self.device)
+        embedding = AutoModel.from_pretrained(
+            "microsoft/deberta-v3-xsmall", output_hidden_states=True
+        )
+        
         self.critic = CriticNetwork(
-            critic_model, self.tokenizer, input_dim=actor_model.config.hidden_size
+            embedding=embedding,
+            tokenizer=AutoTokenizer.from_pretrained(
+                "microsoft/deberta-v3-xsmall", model_max_length=512
+            ),
         ).to(self.device)
 
         self.env = args.env
@@ -280,8 +309,8 @@ class PPOLLMAgent(BaseAgent):
 
         self.trajectories = []
         self.episode_buffer = [[] for _ in range(args.num_envs)]
-        self.completed_episodes = [[]]
-        self.max_segment_length = kwargs.get("max_segment_length", 256)
+        self.completed_episodes = []
+        self.max_segment_length = kwargs.get("max_segment_length", 8)
         self.last_actions = []
 
     def _tokenize(self, text):
@@ -374,13 +403,13 @@ class PPOLLMAgent(BaseAgent):
             returns=None,
         )
         self.episode_buffer[env_idx].append(ppo_llm_transition)
-        self.completed_episodes[-1].append(ppo_llm_transition)
-        if transition.done or len(self.episode_buffer) >= self.max_segment_length:
-            self.completed_episodes.append([])
-            self.episode_buffer = []
+        if transition.done or len(self.episode_buffer[env_idx]) >= self.max_segment_length:
+            # End of episode, store the completed episode
+            self.completed_episodes.append(self.episode_buffer[env_idx])
+            self.episode_buffer[env_idx] = []
 
     def compute_actions(self, s, va, a):
-        dist = self.actor.create_distribution(s, va, self.device, requires_grad=True)
+        dist = self.actor.create_distribution(s, va, self.device)
         if a > len(va) - 1:
             # Action index {a} out of bounds for valid actions {va}.
             return torch.tensor(0.0, device=self.device), torch.tensor(0.0, device=self.device)
@@ -441,11 +470,15 @@ class PPOLLMAgent(BaseAgent):
             loss.backward()
             self.optimizer.step()
             total_loss += loss.item()
-        self.completed_episodes = [[]]
-
-        # Force garbage collection
-        import gc
-        gc.collect()
+    
+        self.completed_episodes = []
+        # Clear the episode buffer
+        self.episode_buffer = [[] for _ in range(len(self.episode_buffer))]
+        # print cache and allocated
+        print(
+            f"Cache allocated: {torch.cuda.memory_allocated(self.device) / 1024**2:.2f} MB, ",
+            f"Cache reserved: {torch.cuda.memory_reserved(self.device) / 1024**2:.2f} MB"
+        )
 
         return total_loss
 
