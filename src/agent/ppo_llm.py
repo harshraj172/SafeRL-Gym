@@ -137,30 +137,6 @@ class ActorNetwork(nn.Module):
         logits = self.forward(state, actions, device)
         return torch.distributions.Categorical(logits=logits)
 
-
-    def create_conditional_logprobs(
-        self, state: str, actions: list[str], device, probs=False, requires_grad=True
-    ) -> torch.TensorType:
-        """
-        Compute conditional log-probabilities (and probabilities) for actions given the state.
-        Args:
-            state: Input state as a string.
-            actions: List of possible actions as strings.
-            device: torch.device to run computation on.
-            probs: If True, also returns probabilities.
-            requires_grad: If True, enables gradient computation.
-        Returns:
-            torch.Tensor or (torch.Tensor, torch.Tensor): Log-probabilities (and probabilities if probs=True).
-        """
-        absolute_logprobs = self.forward(
-            state, actions, device, requires_grad=requires_grad
-        )
-        conditional_logprobs = F.log_softmax(absolute_logprobs, dim=-1)
-        if probs:
-            return conditional_logprobs, torch.exp(conditional_logprobs)
-        else:
-            return conditional_logprobs
-
 class CriticNetwork(nn.Module):
     """
     Enhanced Critic network for PPO-LLM agent with GRU encoders.
@@ -304,7 +280,7 @@ class PPOLLMAgent(BaseAgent):
         params = list(self.actor.parameters()) + list(self.critic.parameters())
         self.optimizer = torch.optim.Adam(
             params,
-            lr=kwargs.get("learning_rate", 1e-5),
+            lr=kwargs.get("learning_rate", 4e-5),
         )
 
         self.trajectories = []
@@ -381,6 +357,9 @@ class PPOLLMAgent(BaseAgent):
                 - cost: (Optional) Cost associated with the transition (float, default 0).
             is_prior: Unused. Present for compatibility with some interfaces.
         """
+        if is_prior:
+            # If this is a prior transition, we do not store it in the episode buffer.
+            return
         env_idx = getattr(transition.state, "env_idx", 0)
         action_info = (
             self.last_actions[env_idx]
@@ -474,12 +453,6 @@ class PPOLLMAgent(BaseAgent):
         self.completed_episodes = []
         # Clear the episode buffer
         self.episode_buffer = [[] for _ in range(len(self.episode_buffer))]
-        # print cache and allocated
-        print(
-            f"Cache allocated: {torch.cuda.memory_allocated(self.device) / 1024**2:.2f} MB, ",
-            f"Cache reserved: {torch.cuda.memory_reserved(self.device) / 1024**2:.2f} MB"
-        )
-
         return total_loss
 
     def _choose_action(self, state, actions=None, logprob_flag=False, return_idx=False):

@@ -64,7 +64,7 @@ def parse_args():
     parser.add_argument('--game', type=str, default="kung-fu", help="game present in the env")
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
-    parser.add_argument('--num_envs', default=1, type=int, help="Number of instances of env (for diverse rollouts)")
+    parser.add_argument('--num_envs', default=4, type=int, help="Number of instances of env (for diverse rollouts)")
     parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'PPO_LLM', 'PPOLag', 'Random'])
     parser.add_argument('--max_steps', default=5000, type=int)
     parser.add_argument('--update_freq', default=1, type=int)
