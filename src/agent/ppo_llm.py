@@ -273,14 +273,14 @@ class PPOLLMAgent(BaseAgent):
         self.env = args.env
 
         self.gamma = kwargs.get("gamma", 0.99)
-        self.clip_epsilon = kwargs.get("clip_epsilon", 0.1)
+        self.clip_epsilon = kwargs.get("clip_epsilon", 0.5)
         self.lambda_gae = kwargs.get("lambda_gae", 0.95)
         self.entropy_coef = kwargs.get("entropy_coef", 0.001)
 
         params = list(self.actor.parameters()) + list(self.critic.parameters())
         self.optimizer = torch.optim.Adam(
             params,
-            lr=kwargs.get("learning_rate", 4e-5),
+            lr=kwargs.get("learning_rate", 3e-5),
         )
 
         self.trajectories = []
@@ -404,51 +404,59 @@ class PPOLLMAgent(BaseAgent):
             return 0.0
         total_loss = 0.0
         for episode in self.completed_episodes:
-            if len(episode) == 0:
-                continue
-            if episode[0].advantage is None:
-                self._compute_advantages(episode)
-            states = [t.state for t in episode]
-            actions = torch.tensor(
-                [t.action for t in episode], device=self.device, dtype=torch.long
-            )
-            valid_actions = [t.valid_actions for t in episode]
-            old_log_probs = torch.tensor(
-                [t.log_prob for t in episode], device=self.device, dtype=torch.float32
-            )
-            advantages = torch.tensor(
-                [t.advantage for t in episode], device=self.device, dtype=torch.float32
-            )
-            returns = torch.tensor(
-                [t.returns for t in episode], device=self.device, dtype=torch.float32
-            )
+            # 4 updates
+            num_updates = 4
+            for update in range(num_updates):
+                if len(episode) == 0:
+                    continue
+                if episode[0].advantage is None:
+                    self._compute_advantages(episode)
+                states = [t.state for t in episode]
+                actions = torch.tensor(
+                    [t.action for t in episode], device=self.device, dtype=torch.long
+                )
+                valid_actions = [t.valid_actions for t in episode]
+                old_log_probs = torch.tensor(
+                    [t.log_prob for t in episode], device=self.device, dtype=torch.float32
+                )
+                advantages = torch.tensor(
+                    [t.advantage for t in episode], device=self.device, dtype=torch.float32
+                )
+                returns = torch.tensor(
+                    [t.returns for t in episode], device=self.device, dtype=torch.float32
+                )
 
-            action_logprob_entropies = [
-                # logprob, entropy
-                self.compute_actions(s, va, a)
-                for s, va, a in zip(states, valid_actions, actions)
-            ]
-            logprobs = torch.stack([
-                logprob for logprob, _ in action_logprob_entropies
-            ])
-            entropies = torch.stack([
-                entropy for _, entropy in action_logprob_entropies
-            ])
-            values = torch.stack([self.critic(s, self.device) for s in states])
-            ratio = torch.exp(logprobs - old_log_probs)
-            surrogate1 = ratio * advantages
-            surrogate2 = (
-                torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
-                * advantages
-            )
-            policy_loss = -torch.min(surrogate1, surrogate2).mean()
-            value_loss = F.mse_loss(values, returns)
-            entropy_loss = self.entropy_coef * entropies.mean()
-            loss = policy_loss + value_loss - entropy_loss
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-            total_loss += loss.item()
+                action_logprob_entropies = [
+                    # logprob, entropy
+                    self.compute_actions(s, va, a)
+                    for s, va, a in zip(states, valid_actions, actions)
+                ]
+                logprobs = torch.stack([
+                    logprob for logprob, _ in action_logprob_entropies
+                ])
+                entropies = torch.stack([
+                    entropy for _, entropy in action_logprob_entropies
+                ])
+                values = torch.stack([self.critic(s, self.device) for s in states])
+                ratio = torch.exp(logprobs - old_log_probs)
+                surrogate1 = ratio * advantages
+                surrogate2 = (
+                    torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+                    * advantages
+                )
+                policy_loss = -torch.min(surrogate1, surrogate2).mean()
+                value_loss = F.mse_loss(values, returns)
+                entropy_loss = self.entropy_coef * entropies.mean()
+                loss = policy_loss + value_loss - entropy_loss
+                print(
+                    f"Policy Loss: {policy_loss.item():.4f}, Value Loss: {value_loss.item():.4f}, "
+                    f"Entropy Loss: {entropy_loss.item():.4f}, Total Loss: {loss.item():.4f}"
+                )
+                self.optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+                self.optimizer.step()
+                total_loss += loss.item()
     
         self.completed_episodes = []
         # Clear the episode buffer

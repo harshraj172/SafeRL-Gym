@@ -25,6 +25,8 @@ def build_state(tokenize_fn, obs, infos, prev_obs=None, prev_acts=None):
     obs, prev_obs, prev_acts: list of strs.
     """
     def get_desc(info):
+        if "title" not in info:
+            return "You are playing a text-based adventure game."
         return f"""You are {info["player_character"]} in the text-based adventure game {info["title"]}. {info["short_summary"]}"""
 
     # def get_stats(info):
