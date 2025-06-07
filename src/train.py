@@ -34,6 +34,7 @@ from src.agent.ppo import PPOAgent, PPOLagAgent
 from src.agent.ppo_llm import PPOLLMAgent, ActorNetwork, CriticNetwork
 from src.env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
 from src.env.base import BaseEnv
+from src.env.test import SuperEasyEnv
 from src import logger
 from src.utils import read_json, ReplayMemory, PrioritizedReplayMemory, Transition, State
 
@@ -64,8 +65,9 @@ def parse_args():
     parser.add_argument('--game', type=str, default="kung-fu", help="game present in the env")
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--env', default="Machiavelli", type=str, help="environment name")
-    parser.add_argument('--num_envs', default=8, type=int, help="Number of instances of env (for diverse rollouts)")
-    parser.add_argument('--agent_type', default='DRRN', type=str, choices=['DRRN', 'PPO', 'PPO_LLM', 'PPOLag', 'Random'])
+    parser.add_argument('--num_envs', default=4, type=int, help="Number of instances of env (for diverse rollouts)")
+    parser.add_argument('--agent_type', default='DRRN', type=str, 
+                        help='Type of agent to use: DRRN | PPO_LLM | A2C_LLM | PPO_LLM_LAG | A2C_LLM_LAG')
     parser.add_argument('--max_steps', default=5000, type=int)
     parser.add_argument('--update_freq', default=1, type=int)
     parser.add_argument('--checkpoint_freq', default=1000, type=int)
@@ -112,9 +114,9 @@ def parse_args():
 def log_episode_stats(tb, info, step):
     tb.logkv_mean('EpisodeScore', info['game_state']['points'])
     tb.logkv("EpisodeLength", step)
-    tb.logkv("NumAch", len(info['game_state']['unlocked_achievements']))
-    tb.logkv("Cost", info['game_state']['cumulative_cost'])
-    tb.logkv("Reward", info['game_state']['reward'])
+    tb.logkv_mean("NumAch", len(info['game_state']['unlocked_achievements']))
+    tb.logkv_mean("Cost", info['game_state']['cumulative_cost'])
+    tb.logkv_mean("Reward", info['game_state']['reward'])
 
 def log_step_stats(log, step, action_str, reward, info, done):
     log(f'>> Action{step}: {action_str}')
@@ -214,11 +216,11 @@ def train(
             tb.dumpkvs()
         if step % update_freq == 0:
             loss = agent.update()
-            tb.logkv("Loss", loss)
+            tb.logkv_mean("Loss", loss)
         if (step == 1 or step % checkpoint_freq == 0):
             savedir = './checkpoints_utility/'
             os.makedirs(savedir, exist_ok=True)
-            if args.agent_type == 'PPO_LLM':
+            if 'LLM' in args.agent_type:
                 # Save only model weights for PPO_LLM
                 torch.save(agent.actor.state_dict(), savedir + '{}_{}_{}_game{}_actor.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game))
                 torch.save(agent.critic.state_dict(), savedir + '{}_{}_{}_game{}_critic.pt'.format(args.env, args.agent_type, args.lm_name.replace('/', '_'), args.game))
@@ -253,12 +255,13 @@ def main():
 
     # Create environments
     envs = []
+    lm = None
     if args.env.lower() == 'machiavelli':
         game2beta = read_json('src/env/machiavelli/game2beta.json')
         weights = [float(w) for w in args.reg_weights.split(',')]
         if weights == [0, 0, 0]:
             print("No regularization")
-            lm = None
+            
         else:
             lm = PowerRegularizer(args.regularizer_lm_name, 'models/multi_deberta-v3-large_1e-05_32_3.pkl', args.reg_weights, utility_thresh=args.logit_threshold)
 
@@ -267,6 +270,10 @@ def main():
                         )
                 for _ in range(args.num_envs)]
         args.stats_dim = len(envs[0].player.user_vars)
+    elif args.env.lower() == 'test':
+        # Test environment for debugging
+        envs = [SuperEasyEnv() for _ in range(args.num_envs)]
+        args.stats_dim = 3  # Example stats dimension for SuperEasyEnv
     else:
         if args.games:
             for g in args.games:
@@ -279,12 +286,14 @@ def main():
     # Possibly pass environment-specific dimensions
     if args.agent_type == 'DRRN':
         agent = DRRNAgent(args)
-    elif args.agent_type == 'PPO':
-        agent = PPOAgent(args)
-    elif args.agent_type == 'PPOLag':
-        agent = PPOLagAgent(args)
     elif args.agent_type == 'PPO_LLM':
-        agent = PPOLLMAgent(args=args)
+        agent = PPOLLMAgent(args=args, loss='ppo')
+    elif args.agent_type == 'A2C_LLM':
+        agent = PPOLLMAgent(args=args, loss='a2c')
+    elif args.agent_type == 'PPO_LLM_LAG':
+        agent = PPOLLMAgent(args=args, loss='ppo', lag=True)
+    elif args.agent_type == 'A2C_LLM_LAG':
+        agent = PPOLLMAgent(args=args, loss='a2c', lag=True)
     else:
         agent = BaseAgent(args)
 

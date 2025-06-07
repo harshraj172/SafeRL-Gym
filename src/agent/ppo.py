@@ -405,7 +405,7 @@ class PPOLagAgent(PPOAgent):
                 entropy = dist.entropy().mean()
                 
                 # Calculate ratios and surrogate losses
-                ratios = torch.exp(new_log_probs - old_log_probs)
+                ratios = new_log_probs
                 advantages = advantages
                 surr1 = ratios * advantages
                 surr2 = torch.clamp(ratios, 1-self.clip_epsilon, 1+self.clip_epsilon) * advantages

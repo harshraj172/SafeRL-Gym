@@ -315,6 +315,12 @@ class Logger(object):
             self.name2val[key] = None
             return
         oldval, cnt = self.name2val[key], self.name2cnt[key]
+        if oldval is None:
+            self.name2val[key] = val
+            self.name2cnt[key] = 1
+            return
+        if cnt  is None:
+            cnt = 0
         self.name2val[key] = oldval * cnt / (cnt + 1) + val / (cnt + 1)
         self.name2cnt[key] = cnt + 1
 
