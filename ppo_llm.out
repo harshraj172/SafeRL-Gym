@@ -1,0 +1,437 @@
+No regularization
+Update 1/1, Policy Loss: -0.1730, Value Loss: 0.0003, Entropy Loss: 0.0130, Total Loss: -0.1858, Episode Cost: 4.00
+Actor grad norm: 0.0182, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: -0.1140, Value Loss: 0.0001, Entropy Loss: 0.0131, Total Loss: -0.1270, Episode Cost: 3.00
+Actor grad norm: 0.0185, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: 0.1776, Value Loss: 0.0001, Entropy Loss: 0.0129, Total Loss: 0.1649, Episode Cost: 3.00
+Actor grad norm: 0.0175, Critic grad norm: 0.0000
+Update 1/1, Policy Loss: 0.0529, Value Loss: 0.0005, Entropy Loss: 0.0123, Total Loss: 0.0411, Episode Cost: 3.00
+Actor grad norm: 0.0163, Critic grad norm: 0.0004
+Update 1/1, Policy Loss: -0.2103, Value Loss: 0.0001, Entropy Loss: 0.0098, Total Loss: -0.2199, Episode Cost: 1.00
+Actor grad norm: 0.0149, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: 0.0519, Value Loss: 0.0001, Entropy Loss: 0.0102, Total Loss: 0.0417, Episode Cost: 2.00
+Actor grad norm: 0.0165, Critic grad norm: 0.0000
+Update 1/1, Policy Loss: -0.0276, Value Loss: 0.0002, Entropy Loss: 0.0091, Total Loss: -0.0365, Episode Cost: 2.00
+Actor grad norm: 0.0193, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: -0.1229, Value Loss: 0.0000, Entropy Loss: 0.0100, Total Loss: -0.1329, Episode Cost: 2.00
+Actor grad norm: 0.0198, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: -0.2728, Value Loss: 0.0001, Entropy Loss: 0.0076, Total Loss: -0.2802, Episode Cost: 2.00
+Actor grad norm: 0.0200, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: -0.2690, Value Loss: 0.0001, Entropy Loss: 0.0058, Total Loss: -0.2747, Episode Cost: 2.00
+Actor grad norm: 0.0204, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: -0.2699, Value Loss: 0.0000, Entropy Loss: 0.0060, Total Loss: -0.2759, Episode Cost: 0.00
+Actor grad norm: 0.0192, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: 0.1171, Value Loss: 0.0000, Entropy Loss: 0.0077, Total Loss: 0.1094, Episode Cost: 5.00
+Actor grad norm: 0.0212, Critic grad norm: 0.0000
+Update 1/1, Policy Loss: 0.1347, Value Loss: 0.0001, Entropy Loss: 0.0079, Total Loss: 0.1269, Episode Cost: 3.00
+Actor grad norm: 0.0181, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: 0.0925, Value Loss: 0.0001, Entropy Loss: 0.0080, Total Loss: 0.0846, Episode Cost: 3.00
+Actor grad norm: 0.0151, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: 0.1518, Value Loss: 0.0000, Entropy Loss: 0.0086, Total Loss: 0.1433, Episode Cost: 4.00
+Actor grad norm: 0.0118, Critic grad norm: 0.0000
+Update 1/1, Policy Loss: 0.0588, Value Loss: 0.0000, Entropy Loss: 0.0081, Total Loss: 0.0507, Episode Cost: 4.00
+Actor grad norm: 0.0161, Critic grad norm: 0.0000
+Update 1/1, Policy Loss: -0.0349, Value Loss: 424.3312, Entropy Loss: 0.0078, Total Loss: 424.2885, Episode Cost: 0.00
+Actor grad norm: 0.0006, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0604, Value Loss: 12.4613, Entropy Loss: 0.0091, Total Loss: 12.3918, Episode Cost: 1.00
+Actor grad norm: 0.0049, Critic grad norm: 0.0043
+Update 1/1, Policy Loss: 0.0521, Value Loss: 15575.5518, Entropy Loss: 0.0078, Total Loss: 15575.5957, Episode Cost: 0.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0891, Value Loss: 0.0000, Entropy Loss: 0.0071, Total Loss: 0.0820, Episode Cost: 0.00
+Actor grad norm: 0.0187, Critic grad norm: 0.0000
+Update 1/1, Policy Loss: -0.0681, Value Loss: 0.0000, Entropy Loss: 0.0080, Total Loss: -0.0761, Episode Cost: 1.00
+Actor grad norm: 0.0161, Critic grad norm: 0.0000
+Update 1/1, Policy Loss: 0.0528, Value Loss: 902.2576, Entropy Loss: 0.0101, Total Loss: 902.3003, Episode Cost: 4.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.2579, Value Loss: 0.0001, Entropy Loss: 0.0084, Total Loss: -0.2663, Episode Cost: 1.00
+Actor grad norm: 0.0145, Critic grad norm: 0.0000
+Update 1/1, Policy Loss: -0.1369, Value Loss: 997.3101, Entropy Loss: 0.0090, Total Loss: 997.1642, Episode Cost: 2.00
+Actor grad norm: 0.0007, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.1997, Value Loss: 0.0002, Entropy Loss: 0.0108, Total Loss: -0.2103, Episode Cost: 1.00
+Actor grad norm: 0.0210, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: 0.0494, Value Loss: 0.0002, Entropy Loss: 0.0107, Total Loss: 0.0389, Episode Cost: 1.00
+Actor grad norm: 0.0207, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: -0.1249, Value Loss: 0.0005, Entropy Loss: 0.0105, Total Loss: -0.1349, Episode Cost: 0.00
+Actor grad norm: 0.0160, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: 0.0114, Value Loss: 0.0003, Entropy Loss: 0.0109, Total Loss: 0.0008, Episode Cost: 1.00
+Actor grad norm: 0.0204, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: -0.1823, Value Loss: 0.0001, Entropy Loss: 0.0083, Total Loss: -0.1905, Episode Cost: 1.00
+Actor grad norm: 0.0174, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: 0.0563, Value Loss: 56.3834, Entropy Loss: 0.0099, Total Loss: 56.4299, Episode Cost: 0.00
+Actor grad norm: 0.0011, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0574, Value Loss: 0.0004, Entropy Loss: 0.0102, Total Loss: 0.0477, Episode Cost: 1.00
+Actor grad norm: 0.0147, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: -0.3430, Value Loss: 0.0003, Entropy Loss: 0.0097, Total Loss: -0.3523, Episode Cost: 0.00
+Actor grad norm: 0.0152, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: -0.0325, Value Loss: 33.2239, Entropy Loss: 0.0107, Total Loss: 33.1808, Episode Cost: 1.00
+Actor grad norm: 0.0021, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.2134, Value Loss: 0.0003, Entropy Loss: 0.0104, Total Loss: -0.2235, Episode Cost: 0.00
+Actor grad norm: 0.0210, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: -0.0999, Value Loss: 62.1794, Entropy Loss: 0.0082, Total Loss: 62.0712, Episode Cost: 0.00
+Actor grad norm: 0.0007, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.1168, Value Loss: 41.7462, Entropy Loss: 0.0092, Total Loss: 41.6202, Episode Cost: 0.00
+Actor grad norm: 0.0021, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0306, Value Loss: 0.0002, Entropy Loss: 0.0092, Total Loss: -0.0397, Episode Cost: 3.00
+Actor grad norm: 0.0202, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: -0.2121, Value Loss: 351.7321, Entropy Loss: 0.0098, Total Loss: 351.5102, Episode Cost: 6.00
+Actor grad norm: 0.0006, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.1636, Value Loss: 0.0006, Entropy Loss: 0.0107, Total Loss: 0.1535, Episode Cost: 0.00
+Actor grad norm: 0.0127, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: 0.0711, Value Loss: 0.0005, Entropy Loss: 0.0091, Total Loss: 0.0626, Episode Cost: 5.00
+Actor grad norm: 0.0180, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: 0.1150, Value Loss: 6767.1797, Entropy Loss: 0.0112, Total Loss: 6767.2837, Episode Cost: 7.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0284, Value Loss: 0.0007, Entropy Loss: 0.0101, Total Loss: -0.0378, Episode Cost: 6.00
+Actor grad norm: 0.0187, Critic grad norm: 0.0004
+Update 1/1, Policy Loss: -0.1008, Value Loss: 3331.1550, Entropy Loss: 0.0100, Total Loss: 3331.0442, Episode Cost: 8.00
+Actor grad norm: 0.0002, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0768, Value Loss: 261.7216, Entropy Loss: 0.0088, Total Loss: 261.6360, Episode Cost: 6.00
+Actor grad norm: 0.0006, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.3632, Value Loss: 0.0003, Entropy Loss: 0.0099, Total Loss: -0.3729, Episode Cost: 11.00
+Actor grad norm: 0.0143, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: -0.1660, Value Loss: 0.0012, Entropy Loss: 0.0087, Total Loss: -0.1734, Episode Cost: 0.00
+Actor grad norm: 0.0204, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: -0.3745, Value Loss: 0.0009, Entropy Loss: 0.0102, Total Loss: -0.3838, Episode Cost: 11.00
+Actor grad norm: 0.0140, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: 0.1867, Value Loss: 0.0011, Entropy Loss: 0.0111, Total Loss: 0.1767, Episode Cost: 6.00
+Actor grad norm: 0.0158, Critic grad norm: 0.0003
+-----------------------------
+| Cost           | 33       |
+| EpisodeLength  | 100      |
+| EpisodeScore   | 176      |
+| FPS            | 5.92     |
+| Loss           | 291      |
+| Max score seen | 285      |
+| NumAch         | 4.5      |
+| Reward         | 176      |
+| Step           | 100      |
+-----------------------------
+Update 1/1, Policy Loss: -0.0690, Value Loss: 0.0010, Entropy Loss: 0.0094, Total Loss: -0.0774, Episode Cost: 0.00
+Actor grad norm: 0.0179, Critic grad norm: 0.0005
+Update 1/1, Policy Loss: -0.1246, Value Loss: 0.0006, Entropy Loss: 0.0082, Total Loss: -0.1322, Episode Cost: 2.00
+Actor grad norm: 0.0166, Critic grad norm: 0.0003
+Update 1/1, Policy Loss: -0.0060, Value Loss: 0.0003, Entropy Loss: 0.0105, Total Loss: -0.0162, Episode Cost: 5.00
+Actor grad norm: 0.0157, Critic grad norm: 0.0001
+Update 1/1, Policy Loss: -0.1620, Value Loss: 1248.9725, Entropy Loss: 0.0094, Total Loss: 1248.8011, Episode Cost: 7.00
+Actor grad norm: 0.0004, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0649, Value Loss: 0.0006, Entropy Loss: 0.0065, Total Loss: -0.0709, Episode Cost: 3.00
+Actor grad norm: 0.0156, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: 0.0109, Value Loss: 49.3661, Entropy Loss: 0.0064, Total Loss: 49.3706, Episode Cost: 4.00
+Actor grad norm: 0.0009, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.1369, Value Loss: 0.0013, Entropy Loss: 0.0084, Total Loss: -0.1440, Episode Cost: 0.00
+Actor grad norm: 0.0199, Critic grad norm: 0.0007
+Update 1/1, Policy Loss: 0.1581, Value Loss: 0.0016, Entropy Loss: 0.0089, Total Loss: 0.1507, Episode Cost: 0.00
+Actor grad norm: 0.0145, Critic grad norm: 0.0003
+Update 1/1, Policy Loss: 0.2459, Value Loss: 0.0008, Entropy Loss: 0.0078, Total Loss: 0.2389, Episode Cost: 2.00
+Actor grad norm: 0.0189, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: -0.0144, Value Loss: 0.0009, Entropy Loss: 0.0075, Total Loss: -0.0211, Episode Cost: 2.00
+Actor grad norm: 0.0172, Critic grad norm: 0.0005
+Update 1/1, Policy Loss: -0.2595, Value Loss: 0.0008, Entropy Loss: 0.0068, Total Loss: -0.2655, Episode Cost: 3.00
+Actor grad norm: 0.0204, Critic grad norm: 0.0009
+Update 1/1, Policy Loss: 0.4339, Value Loss: 0.0010, Entropy Loss: 0.0075, Total Loss: 0.4275, Episode Cost: 2.00
+Actor grad norm: 0.0163, Critic grad norm: 0.0002
+Update 1/1, Policy Loss: 0.3505, Value Loss: 728.6641, Entropy Loss: 0.0054, Total Loss: 729.0092, Episode Cost: 1.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0128, Value Loss: 0.0008, Entropy Loss: 0.0081, Total Loss: -0.0201, Episode Cost: 2.00
+Actor grad norm: 0.0153, Critic grad norm: 0.0003
+Update 1/1, Policy Loss: 0.0859, Value Loss: 0.0011, Entropy Loss: 0.0079, Total Loss: 0.0791, Episode Cost: 3.00
+Actor grad norm: 0.0203, Critic grad norm: 0.0006
+Update 1/1, Policy Loss: -0.0147, Value Loss: 0.0012, Entropy Loss: 0.0066, Total Loss: -0.0201, Episode Cost: 3.00
+Actor grad norm: 0.0148, Critic grad norm: 0.0007
+Update 1/1, Policy Loss: 0.5138, Value Loss: 0.0006, Entropy Loss: 0.0094, Total Loss: 0.5051, Episode Cost: 2.00
+Actor grad norm: 0.0157, Critic grad norm: 0.0003
+Update 1/1, Policy Loss: 0.2640, Value Loss: 670.5297, Entropy Loss: 0.0107, Total Loss: 670.7830, Episode Cost: 2.00
+Actor grad norm: 0.0005, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0493, Value Loss: 207.6069, Entropy Loss: 0.0057, Total Loss: 207.5519, Episode Cost: 2.00
+Actor grad norm: 0.0004, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.1624, Value Loss: 421.8278, Entropy Loss: 0.0071, Total Loss: 421.9831, Episode Cost: 3.00
+Actor grad norm: 0.0005, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.2163, Value Loss: 375.9368, Entropy Loss: 0.0104, Total Loss: 375.7101, Episode Cost: 1.00
+Actor grad norm: 0.0005, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0674, Value Loss: 0.0016, Entropy Loss: 0.0083, Total Loss: -0.0742, Episode Cost: 1.00
+Actor grad norm: 0.0196, Critic grad norm: 0.0005
+Update 1/1, Policy Loss: 0.3351, Value Loss: 146.4722, Entropy Loss: 0.0073, Total Loss: 146.7999, Episode Cost: 0.00
+Actor grad norm: 0.0014, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.1225, Value Loss: 351.0530, Entropy Loss: 0.0059, Total Loss: 350.9246, Episode Cost: 0.00
+Actor grad norm: 0.0004, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0418, Value Loss: 0.0014, Entropy Loss: 0.0086, Total Loss: -0.0491, Episode Cost: 1.00
+Actor grad norm: 0.0189, Critic grad norm: 0.0005
+Update 1/1, Policy Loss: -0.2238, Value Loss: 49.1770, Entropy Loss: 0.0089, Total Loss: 48.9443, Episode Cost: 1.00
+Actor grad norm: 0.0009, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.1849, Value Loss: 1080.4973, Entropy Loss: 0.0096, Total Loss: 1080.6726, Episode Cost: 1.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0313, Value Loss: 0.0017, Entropy Loss: 0.0078, Total Loss: -0.0374, Episode Cost: 2.00
+Actor grad norm: 0.0195, Critic grad norm: 0.0008
+Update 1/1, Policy Loss: 0.2614, Value Loss: 23.2885, Entropy Loss: 0.0101, Total Loss: 23.5398, Episode Cost: 0.00
+Actor grad norm: 0.0024, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.2092, Value Loss: 0.0015, Entropy Loss: 0.0101, Total Loss: 0.2005, Episode Cost: 0.00
+Actor grad norm: 0.0192, Critic grad norm: 0.0004
+Update 1/1, Policy Loss: -0.0612, Value Loss: 61.7510, Entropy Loss: 0.0096, Total Loss: 61.6801, Episode Cost: 3.00
+Actor grad norm: 0.0008, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.1230, Value Loss: 0.0030, Entropy Loss: 0.0082, Total Loss: 0.1178, Episode Cost: 0.00
+Actor grad norm: 0.0160, Critic grad norm: 0.0006
+Update 1/1, Policy Loss: -0.3175, Value Loss: 0.0012, Entropy Loss: 0.0096, Total Loss: -0.3259, Episode Cost: 1.00
+Actor grad norm: 0.0191, Critic grad norm: 0.0005
+Update 1/1, Policy Loss: 0.1174, Value Loss: 0.0020, Entropy Loss: 0.0087, Total Loss: 0.1107, Episode Cost: 9.00
+Actor grad norm: 0.0202, Critic grad norm: 0.0009
+Update 1/1, Policy Loss: 0.1051, Value Loss: 0.0022, Entropy Loss: 0.0098, Total Loss: 0.0976, Episode Cost: 1.00
+Actor grad norm: 0.0212, Critic grad norm: 0.0010
+Update 1/1, Policy Loss: 0.2518, Value Loss: 0.0026, Entropy Loss: 0.0097, Total Loss: 0.2447, Episode Cost: 2.00
+Actor grad norm: 0.0207, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: -0.0244, Value Loss: 4193.7607, Entropy Loss: 0.0103, Total Loss: 4193.7261, Episode Cost: 9.00
+Actor grad norm: 0.0002, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.2408, Value Loss: 6232.8340, Entropy Loss: 0.0117, Total Loss: 6233.0630, Episode Cost: 3.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0670, Value Loss: 55.7966, Entropy Loss: 0.0099, Total Loss: 55.7197, Episode Cost: 0.00
+Actor grad norm: 0.0008, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0335, Value Loss: 0.0023, Entropy Loss: 0.0091, Total Loss: -0.0404, Episode Cost: 0.00
+Actor grad norm: 0.0146, Critic grad norm: 0.0006
+Update 1/1, Policy Loss: -0.2184, Value Loss: 0.0020, Entropy Loss: 0.0113, Total Loss: -0.2277, Episode Cost: 9.00
+Actor grad norm: 0.0158, Critic grad norm: 0.0004
+Update 1/1, Policy Loss: 0.0939, Value Loss: 0.0017, Entropy Loss: 0.0101, Total Loss: 0.0855, Episode Cost: 5.00
+Actor grad norm: 0.0172, Critic grad norm: 0.0006
+Update 1/1, Policy Loss: -0.0938, Value Loss: 0.0028, Entropy Loss: 0.0094, Total Loss: -0.1004, Episode Cost: 0.00
+Actor grad norm: 0.0198, Critic grad norm: 0.0008
+Update 1/1, Policy Loss: -0.0075, Value Loss: 32.7960, Entropy Loss: 0.0097, Total Loss: 32.7788, Episode Cost: 0.00
+Actor grad norm: 0.0016, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0624, Value Loss: 0.0023, Entropy Loss: 0.0089, Total Loss: 0.0558, Episode Cost: 0.00
+Actor grad norm: 0.0188, Critic grad norm: 0.0009
+Update 1/1, Policy Loss: 0.0960, Value Loss: 0.0033, Entropy Loss: 0.0095, Total Loss: 0.0898, Episode Cost: 1.00
+Actor grad norm: 0.0161, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: -0.2881, Value Loss: 6762.3818, Entropy Loss: 0.0095, Total Loss: 6762.0845, Episode Cost: 12.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.2269, Value Loss: 0.0032, Entropy Loss: 0.0090, Total Loss: -0.2327, Episode Cost: 0.00
+Actor grad norm: 0.0198, Critic grad norm: 0.0009
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 181      |
+| EpisodeScore   | 185      |
+| FPS            | 6        |
+| Loss           | 227      |
+| Max score seen | 310      |
+| NumAch         | 5        |
+| Reward         | 180      |
+| Step           | 200      |
+-----------------------------
+Update 1/1, Policy Loss: -0.3715, Value Loss: 0.0022, Entropy Loss: 0.0071, Total Loss: -0.3764, Episode Cost: 3.00
+Actor grad norm: 0.0170, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: 0.3483, Value Loss: 0.0029, Entropy Loss: 0.0052, Total Loss: 0.3460, Episode Cost: 2.00
+Actor grad norm: 0.0171, Critic grad norm: 0.0007
+Update 1/1, Policy Loss: 0.0946, Value Loss: 6230.5854, Entropy Loss: 0.0099, Total Loss: 6230.6704, Episode Cost: 8.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0035, Value Loss: 5632.8809, Entropy Loss: 0.0086, Total Loss: 5632.8687, Episode Cost: 11.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.2223, Value Loss: 0.0031, Entropy Loss: 0.0066, Total Loss: -0.2259, Episode Cost: 2.00
+Actor grad norm: 0.0181, Critic grad norm: 0.0006
+Update 1/1, Policy Loss: 0.1122, Value Loss: 0.0026, Entropy Loss: 0.0072, Total Loss: 0.1075, Episode Cost: 2.00
+Actor grad norm: 0.0204, Critic grad norm: 0.0007
+Update 1/1, Policy Loss: -0.0378, Value Loss: 0.0030, Entropy Loss: 0.0095, Total Loss: -0.0443, Episode Cost: 5.00
+Actor grad norm: 0.0193, Critic grad norm: 0.0005
+Update 1/1, Policy Loss: 0.4987, Value Loss: 5633.1074, Entropy Loss: 0.0109, Total Loss: 5633.5952, Episode Cost: 15.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.2143, Value Loss: 0.0022, Entropy Loss: 0.0077, Total Loss: 0.2088, Episode Cost: 3.00
+Actor grad norm: 0.0191, Critic grad norm: 0.0005
+Update 1/1, Policy Loss: 0.3564, Value Loss: 0.0038, Entropy Loss: 0.0090, Total Loss: 0.3513, Episode Cost: 2.00
+Actor grad norm: 0.0158, Critic grad norm: 0.0004
+Update 1/1, Policy Loss: -0.1906, Value Loss: 10111.0664, Entropy Loss: 0.0095, Total Loss: 10110.8662, Episode Cost: 7.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0914, Value Loss: 1247.6854, Entropy Loss: 0.0100, Total Loss: 1247.5840, Episode Cost: 5.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.5400, Value Loss: 0.0030, Entropy Loss: 0.0047, Total Loss: -0.5418, Episode Cost: 0.00
+Actor grad norm: 0.0211, Critic grad norm: 0.0008
+Update 1/1, Policy Loss: 0.0079, Value Loss: 1393.0571, Entropy Loss: 0.0094, Total Loss: 1393.0555, Episode Cost: 2.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.1991, Value Loss: 0.0048, Entropy Loss: 0.0092, Total Loss: 0.1947, Episode Cost: 0.00
+Actor grad norm: 0.0200, Critic grad norm: 0.0009
+Update 1/1, Policy Loss: 0.1295, Value Loss: 0.0052, Entropy Loss: 0.0093, Total Loss: 0.1254, Episode Cost: 1.00
+Actor grad norm: 0.0199, Critic grad norm: 0.0014
+Update 1/1, Policy Loss: -0.2038, Value Loss: 0.0031, Entropy Loss: 0.0110, Total Loss: -0.2117, Episode Cost: 1.00
+Actor grad norm: 0.0194, Critic grad norm: 0.0007
+Update 1/1, Policy Loss: -0.1228, Value Loss: 0.0034, Entropy Loss: 0.0105, Total Loss: -0.1298, Episode Cost: 1.00
+Actor grad norm: 0.0173, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: -0.2447, Value Loss: 0.0030, Entropy Loss: 0.0055, Total Loss: -0.2471, Episode Cost: 3.00
+Actor grad norm: 0.0159, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: 0.0824, Value Loss: 61.4467, Entropy Loss: 0.0046, Total Loss: 61.5244, Episode Cost: 1.00
+Actor grad norm: 0.0004, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.1566, Value Loss: 55.6250, Entropy Loss: 0.0092, Total Loss: 55.4592, Episode Cost: 2.00
+Actor grad norm: 0.0008, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0409, Value Loss: 41.3184, Entropy Loss: 0.0095, Total Loss: 41.3499, Episode Cost: 1.00
+Actor grad norm: 0.0013, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.2257, Value Loss: 12.2465, Entropy Loss: 0.0074, Total Loss: 12.4648, Episode Cost: 3.00
+Actor grad norm: 0.0047, Critic grad norm: 0.0044
+Update 1/1, Policy Loss: -0.0083, Value Loss: 0.0047, Entropy Loss: 0.0066, Total Loss: -0.0102, Episode Cost: 2.00
+Actor grad norm: 0.0169, Critic grad norm: 0.0020
+Update 1/1, Policy Loss: 0.0232, Value Loss: 0.0036, Entropy Loss: 0.0091, Total Loss: 0.0177, Episode Cost: 2.00
+Actor grad norm: 0.0163, Critic grad norm: 0.0012
+Update 1/1, Policy Loss: 0.2789, Value Loss: 0.0035, Entropy Loss: 0.0080, Total Loss: 0.2744, Episode Cost: 4.00
+Actor grad norm: 0.0141, Critic grad norm: 0.0005
+Update 1/1, Policy Loss: 0.1733, Value Loss: 260.5646, Entropy Loss: 0.0066, Total Loss: 260.7314, Episode Cost: 3.00
+Actor grad norm: 0.0004, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.2436, Value Loss: 0.0044, Entropy Loss: 0.0084, Total Loss: 0.2396, Episode Cost: 2.00
+Actor grad norm: 0.0182, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: -0.1076, Value Loss: 387.7079, Entropy Loss: 0.0076, Total Loss: 387.5927, Episode Cost: 8.00
+Actor grad norm: 0.0002, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.2152, Value Loss: 0.0051, Entropy Loss: 0.0091, Total Loss: 0.2111, Episode Cost: 6.00
+Actor grad norm: 0.0180, Critic grad norm: 0.0006
+Update 1/1, Policy Loss: -0.4086, Value Loss: 0.0040, Entropy Loss: 0.0083, Total Loss: -0.4128, Episode Cost: 1.00
+Actor grad norm: 0.0144, Critic grad norm: 0.0004
+Update 1/1, Policy Loss: 0.1778, Value Loss: 0.0053, Entropy Loss: 0.0054, Total Loss: 0.1777, Episode Cost: 0.00
+Actor grad norm: 0.0185, Critic grad norm: 0.0022
+Update 1/1, Policy Loss: -0.1865, Value Loss: 0.0046, Entropy Loss: 0.0115, Total Loss: -0.1934, Episode Cost: 9.00
+Actor grad norm: 0.0155, Critic grad norm: 0.0006
+Update 1/1, Policy Loss: -0.0958, Value Loss: 4192.1206, Entropy Loss: 0.0109, Total Loss: 4192.0142, Episode Cost: 12.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.1575, Value Loss: 66.7784, Entropy Loss: 0.0105, Total Loss: 66.6104, Episode Cost: 0.00
+Actor grad norm: 0.0009, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0363, Value Loss: 0.0054, Entropy Loss: 0.0100, Total Loss: 0.0317, Episode Cost: 1.00
+Actor grad norm: 0.0189, Critic grad norm: 0.0010
+Update 1/1, Policy Loss: -0.0657, Value Loss: 0.0042, Entropy Loss: 0.0096, Total Loss: -0.0710, Episode Cost: 5.00
+Actor grad norm: 0.0156, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: 0.3410, Value Loss: 0.0048, Entropy Loss: 0.0090, Total Loss: 0.3368, Episode Cost: 3.00
+Actor grad norm: 0.0157, Critic grad norm: 0.0008
+Update 1/1, Policy Loss: 0.0545, Value Loss: 48.7497, Entropy Loss: 0.0113, Total Loss: 48.7929, Episode Cost: 1.00
+Actor grad norm: 0.0007, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.3123, Value Loss: 0.0050, Entropy Loss: 0.0079, Total Loss: -0.3153, Episode Cost: 0.00
+Actor grad norm: 0.0157, Critic grad norm: 0.0015
+Update 1/1, Policy Loss: 0.0064, Value Loss: 0.0045, Entropy Loss: 0.0080, Total Loss: 0.0029, Episode Cost: 0.00
+Actor grad norm: 0.0191, Critic grad norm: 0.0019
+Update 1/1, Policy Loss: -0.0487, Value Loss: 0.0055, Entropy Loss: 0.0075, Total Loss: -0.0507, Episode Cost: 2.00
+Actor grad norm: 0.0172, Critic grad norm: 0.0015
+Update 1/1, Policy Loss: 0.3075, Value Loss: 0.0046, Entropy Loss: 0.0087, Total Loss: 0.3034, Episode Cost: 3.00
+Actor grad norm: 0.0186, Critic grad norm: 0.0018
+Update 1/1, Policy Loss: 0.0529, Value Loss: 12.2230, Entropy Loss: 0.0092, Total Loss: 12.2667, Episode Cost: 1.00
+Actor grad norm: 0.0046, Critic grad norm: 0.0045
+Update 1/1, Policy Loss: -0.2265, Value Loss: 0.0046, Entropy Loss: 0.0065, Total Loss: -0.2284, Episode Cost: 2.00
+Actor grad norm: 0.0147, Critic grad norm: 0.0021
+Update 1/1, Policy Loss: -0.0265, Value Loss: 55.4039, Entropy Loss: 0.0052, Total Loss: 55.3722, Episode Cost: 3.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.4000, Value Loss: 0.0058, Entropy Loss: 0.0071, Total Loss: 0.3988, Episode Cost: 7.00
+Actor grad norm: 0.0146, Critic grad norm: 0.0006
+Update 1/1, Policy Loss: -0.0617, Value Loss: 0.0048, Entropy Loss: 0.0086, Total Loss: -0.0654, Episode Cost: 4.00
+Actor grad norm: 0.0196, Critic grad norm: 0.0014
+Update 1/1, Policy Loss: -0.1603, Value Loss: 32.6144, Entropy Loss: 0.0064, Total Loss: 32.4478, Episode Cost: 4.00
+Actor grad norm: 0.0010, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0081, Value Loss: 0.0042, Entropy Loss: 0.0079, Total Loss: 0.0044, Episode Cost: 2.00
+Actor grad norm: 0.0196, Critic grad norm: 0.0015
+Update 1/1, Policy Loss: -0.0076, Value Loss: 1247.0630, Entropy Loss: 0.0102, Total Loss: 1247.0452, Episode Cost: 4.00
+Actor grad norm: 0.0004, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0322, Value Loss: 0.0047, Entropy Loss: 0.0090, Total Loss: -0.0364, Episode Cost: 5.00
+Actor grad norm: 0.0178, Critic grad norm: 0.0016
+-----------------------------
+| Cost           | 40.8     |
+| EpisodeLength  | 266      |
+| EpisodeScore   | 274      |
+| FPS            | 5.8      |
+| Loss           | 367      |
+| Max score seen | 510      |
+| NumAch         | 5.25     |
+| Reward         | 274      |
+| Step           | 300      |
+-----------------------------
+Update 1/1, Policy Loss: 0.0763, Value Loss: 307.9639, Entropy Loss: 0.0062, Total Loss: 308.0340, Episode Cost: 1.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0808, Value Loss: 61.2368, Entropy Loss: 0.0082, Total Loss: 61.3093, Episode Cost: 0.00
+Actor grad norm: 0.0012, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0048, Value Loss: 0.0065, Entropy Loss: 0.0092, Total Loss: -0.0076, Episode Cost: 2.00
+Actor grad norm: 0.0182, Critic grad norm: 0.0014
+Update 1/1, Policy Loss: 0.1501, Value Loss: 5631.3608, Entropy Loss: 0.0113, Total Loss: 5631.4995, Episode Cost: 2.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0464, Value Loss: 0.0048, Entropy Loss: 0.0077, Total Loss: 0.0435, Episode Cost: 1.00
+Actor grad norm: 0.0187, Critic grad norm: 0.0020
+Update 1/1, Policy Loss: -0.1219, Value Loss: 0.0061, Entropy Loss: 0.0057, Total Loss: -0.1215, Episode Cost: 0.00
+Actor grad norm: 0.0154, Critic grad norm: 0.0018
+Update 1/1, Policy Loss: -0.0388, Value Loss: 0.0061, Entropy Loss: 0.0116, Total Loss: -0.0443, Episode Cost: 5.00
+Actor grad norm: 0.0148, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: 0.0863, Value Loss: 6758.5918, Entropy Loss: 0.0092, Total Loss: 6758.6689, Episode Cost: 7.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.1560, Value Loss: 790.1687, Entropy Loss: 0.0110, Total Loss: 790.0018, Episode Cost: 1.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.2613, Value Loss: 0.0076, Entropy Loss: 0.0094, Total Loss: 0.2596, Episode Cost: 2.00
+Actor grad norm: 0.0192, Critic grad norm: 0.0019
+Update 1/1, Policy Loss: 0.2665, Value Loss: 0.0073, Entropy Loss: 0.0085, Total Loss: 0.2652, Episode Cost: 0.00
+Actor grad norm: 0.0158, Critic grad norm: 0.0008
+Update 1/1, Policy Loss: -0.1614, Value Loss: 1247.0178, Entropy Loss: 0.0118, Total Loss: 1246.8447, Episode Cost: 5.00
+Actor grad norm: 0.0002, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.1498, Value Loss: 0.0062, Entropy Loss: 0.0109, Total Loss: 0.1451, Episode Cost: 3.00
+Actor grad norm: 0.0161, Critic grad norm: 0.0017
+Update 1/1, Policy Loss: -0.1871, Value Loss: 0.0075, Entropy Loss: 0.0079, Total Loss: -0.1874, Episode Cost: 1.00
+Actor grad norm: 0.0171, Critic grad norm: 0.0023
+Update 1/1, Policy Loss: -0.2777, Value Loss: 0.0076, Entropy Loss: 0.0057, Total Loss: -0.2759, Episode Cost: 2.00
+Actor grad norm: 0.0170, Critic grad norm: 0.0024
+Update 1/1, Policy Loss: 0.3905, Value Loss: 0.0055, Entropy Loss: 0.0079, Total Loss: 0.3880, Episode Cost: 0.00
+Actor grad norm: 0.0172, Critic grad norm: 0.0010
+Update 1/1, Policy Loss: 0.0551, Value Loss: 32.5799, Entropy Loss: 0.0094, Total Loss: 32.6257, Episode Cost: 0.00
+Actor grad norm: 0.0013, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0514, Value Loss: 41.0915, Entropy Loss: 0.0100, Total Loss: 41.0300, Episode Cost: 0.00
+Actor grad norm: 0.0011, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0253, Value Loss: 0.0068, Entropy Loss: 0.0076, Total Loss: 0.0245, Episode Cost: 2.00
+Actor grad norm: 0.0158, Critic grad norm: 0.0012
+Update 1/1, Policy Loss: -0.3698, Value Loss: 0.0072, Entropy Loss: 0.0081, Total Loss: -0.3707, Episode Cost: 1.00
+Actor grad norm: 0.0157, Critic grad norm: 0.0025
+Update 1/1, Policy Loss: 0.2638, Value Loss: 0.0068, Entropy Loss: 0.0102, Total Loss: 0.2603, Episode Cost: 3.00
+Actor grad norm: 0.0178, Critic grad norm: 0.0015
+Update 1/1, Policy Loss: 0.0615, Value Loss: 0.0059, Entropy Loss: 0.0088, Total Loss: 0.0586, Episode Cost: 2.00
+Actor grad norm: 0.0166, Critic grad norm: 0.0028
+Update 1/1, Policy Loss: -0.1579, Value Loss: 0.0064, Entropy Loss: 0.0079, Total Loss: -0.1594, Episode Cost: 4.00
+Actor grad norm: 0.0123, Critic grad norm: 0.0011
+Update 1/1, Policy Loss: 0.2768, Value Loss: 0.0067, Entropy Loss: 0.0077, Total Loss: 0.2758, Episode Cost: 1.00
+Actor grad norm: 0.0144, Critic grad norm: 0.0007
+Update 1/1, Policy Loss: -0.0298, Value Loss: 0.0057, Entropy Loss: 0.0096, Total Loss: -0.0337, Episode Cost: 7.00
+Actor grad norm: 0.0189, Critic grad norm: 0.0016
+Update 1/1, Policy Loss: 0.0390, Value Loss: 0.0067, Entropy Loss: 0.0085, Total Loss: 0.0372, Episode Cost: 8.00
+Actor grad norm: 0.0136, Critic grad norm: 0.0008
+Update 1/1, Policy Loss: 0.1150, Value Loss: 668.4526, Entropy Loss: 0.0108, Total Loss: 668.5568, Episode Cost: 3.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.0296, Value Loss: 0.0044, Entropy Loss: 0.0064, Total Loss: -0.0316, Episode Cost: 1.00
+Actor grad norm: 0.0178, Critic grad norm: 0.0017
+Update 1/1, Policy Loss: -0.0418, Value Loss: 0.0070, Entropy Loss: 0.0088, Total Loss: -0.0436, Episode Cost: 2.00
+Actor grad norm: 0.0195, Critic grad norm: 0.0015
+Update 1/1, Policy Loss: -0.0646, Value Loss: 0.0082, Entropy Loss: 0.0097, Total Loss: -0.0661, Episode Cost: 1.00
+Actor grad norm: 0.0155, Critic grad norm: 0.0012
+Update 1/1, Policy Loss: -0.0988, Value Loss: 0.0066, Entropy Loss: 0.0110, Total Loss: -0.1033, Episode Cost: 1.00
+Actor grad norm: 0.0130, Critic grad norm: 0.0013
+Update 1/1, Policy Loss: 0.2126, Value Loss: 0.0076, Entropy Loss: 0.0081, Total Loss: 0.2121, Episode Cost: 0.00
+Actor grad norm: 0.0142, Critic grad norm: 0.0019
+Update 1/1, Policy Loss: -0.3094, Value Loss: 19921.2676, Entropy Loss: 0.0101, Total Loss: 19920.9492, Episode Cost: 5.00
+Actor grad norm: 0.0000, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0289, Value Loss: 4954.8833, Entropy Loss: 0.0113, Total Loss: 4954.9009, Episode Cost: 7.00
+Actor grad norm: 0.0001, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0114, Value Loss: 32.5641, Entropy Loss: 0.0096, Total Loss: 32.5659, Episode Cost: 0.00
+Actor grad norm: 0.0009, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.3256, Value Loss: 0.0067, Entropy Loss: 0.0110, Total Loss: 0.3213, Episode Cost: 1.00
+Actor grad norm: 0.0159, Critic grad norm: 0.0007
+Update 1/1, Policy Loss: 0.4189, Value Loss: 0.0071, Entropy Loss: 0.0114, Total Loss: 0.4146, Episode Cost: 3.00
+Actor grad norm: 0.0188, Critic grad norm: 0.0012
+Update 1/1, Policy Loss: -0.0994, Value Loss: 0.0077, Entropy Loss: 0.0106, Total Loss: -0.1023, Episode Cost: 3.00
+Actor grad norm: 0.0134, Critic grad norm: 0.0015
+Update 1/1, Policy Loss: -0.0072, Value Loss: 0.0062, Entropy Loss: 0.0103, Total Loss: -0.0114, Episode Cost: 4.00
+Actor grad norm: 0.0172, Critic grad norm: 0.0022
+Update 1/1, Policy Loss: -0.2094, Value Loss: 41.1020, Entropy Loss: 0.0099, Total Loss: 40.8827, Episode Cost: 0.00
+Actor grad norm: 0.0006, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.2684, Value Loss: 0.0065, Entropy Loss: 0.0084, Total Loss: -0.2702, Episode Cost: 2.00
+Actor grad norm: 0.0138, Critic grad norm: 0.0010
+Update 1/1, Policy Loss: 0.2659, Value Loss: 0.0068, Entropy Loss: 0.0091, Total Loss: 0.2636, Episode Cost: 0.00
+Actor grad norm: 0.0183, Critic grad norm: 0.0009
+Update 1/1, Policy Loss: -0.1529, Value Loss: 3326.3018, Entropy Loss: 0.0086, Total Loss: 3326.1404, Episode Cost: 7.00
+Actor grad norm: 0.0002, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: 0.0270, Value Loss: 0.0072, Entropy Loss: 0.0096, Total Loss: 0.0246, Episode Cost: 1.00
+Actor grad norm: 0.0174, Critic grad norm: 0.0019
+Update 1/1, Policy Loss: 0.1156, Value Loss: 66.6046, Entropy Loss: 0.0062, Total Loss: 66.7140, Episode Cost: 1.00
+Actor grad norm: 0.0003, Critic grad norm: 0.0046
+Update 1/1, Policy Loss: -0.1437, Value Loss: 0.0062, Entropy Loss: 0.0059, Total Loss: -0.1435, Episode Cost: 1.00
+Actor grad norm: 0.0167, Critic grad norm: 0.0010
+Update 1/1, Policy Loss: 0.1066, Value Loss: 0.0075, Entropy Loss: 0.0115, Total Loss: 0.1026, Episode Cost: 3.00
+Actor grad norm: 0.0194, Critic grad norm: 0.0018
+Update 1/1, Policy Loss: -0.1105, Value Loss: 0.0071, Entropy Loss: 0.0090, Total Loss: -0.1124, Episode Cost: 8.00
+Actor grad norm: 0.0172, Critic grad norm: 0.0024
+-----------------------------
+| Cost           | 31.6     |
+| EpisodeLength  | 392      |
+| EpisodeScore   | 210      |
+| FPS            | 5.73     |
+| Loss           | 439      |
+| Max score seen | 510      |
+| NumAch         | 4.8      |
+| Reward         | 208      |
+| Step           | 400      |
+-----------------------------

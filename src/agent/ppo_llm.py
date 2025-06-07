@@ -38,6 +38,9 @@ TrajectoryStep = namedtuple(
     ],
 )
 
+def format_state(state):
+    return state.state
+    # return f"Observations: {state.obs}\nDescription: {state.description}\nInventory: {state.inventory}"
 
 class ActorNetwork(nn.Module):
     """
@@ -54,6 +57,7 @@ class ActorNetwork(nn.Module):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
+        self.temperature = 10.0  # Temperature for scaling log-probabilities
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -69,7 +73,7 @@ class ActorNetwork(nn.Module):
             torch.Tensor: Log-probabilities for each action.
         """
         batch_size = len(actions)
-        states = [state.state] * batch_size
+        states = [format_state(state)] * batch_size
         state_tokens = self.tokenizer(states, return_tensors="pt", padding=True)
         action_tokens = self.tokenizer(
             actions, return_tensors="pt", padding="longest", padding_side="right"
@@ -104,25 +108,37 @@ class ActorNetwork(nn.Module):
         else:
             with torch.no_grad():
                 outputs = self.model(**inputs)
-        logits = outputs.logits  # Scale logits to avoid overflow
-        k = state_tokens["input_ids"].shape[1]
-        m = action_tokens["input_ids"].shape[1]
-        next_token_logits = logits[:, k - 1 : -1, :]
-        # next_token_logprobs = F.log_softmax(next_token_logits, dim=-1)
-        action_token_indices = action_tokens["input_ids"].to(
-            device=device, dtype=torch.long
-        )
-        batch_indices = torch.arange(action_token_indices.shape[0], device=device)
+        # Logits: [batch_size, total_seq_len, vocab_size]
+        logits = outputs.logits
+
+        # Split lengths
+        k = state_tokens["input_ids"].shape[1]  # state length
+        m = action_tokens["input_ids"].shape[1]  # action length
+
+        # Next-token logits: [batch_size, m, vocab_size]
+        next_token_logits = logits[:, k - 1 : -1, :]  # aligns each action token with prediction from previous
+
+        # Apply log-softmax over vocab
+        log_probs = F.log_softmax(next_token_logits, dim=-1)
+
+        # Action token ids: [batch_size, m]
+        action_token_indices = action_tokens["input_ids"].to(device=device, dtype=torch.long)
+
+        # Gather log-probs for the actual action tokens
+        batch_size = action_token_indices.shape[0]
         token_indices = torch.arange(m, device=device)
-        # action_token_logprobs_ = next_token_logprobs[
-            # batch_indices.unsqueeze(1), token_indices.unsqueeze(0), action_token_indices
-        # ]
-        action_token_logits = next_token_logits[
-            batch_indices.unsqueeze(1), token_indices.unsqueeze(0), action_token_indices
+        batch_indices = torch.arange(batch_size, device=device).unsqueeze(1)
+
+        # Gather action token log-probs: shape [batch_size, m]
+        action_token_logprobs = log_probs[
+            batch_indices, token_indices.unsqueeze(0), action_token_indices
         ]
-        # action_token_logprobs = action_token_logprobs_ * action_tokens["attention_mask"]
-        action_token_logits = action_token_logits * action_tokens["attention_mask"]
-        return action_token_logits.sum(dim=-1) / 100.0
+
+        # Mask padding tokens
+        masked_logprobs = action_token_logprobs * action_tokens["attention_mask"]
+
+        # Return summed log-probs over tokens (or mean, scaled as needed)
+        return masked_logprobs.sum(dim=1) / self.temperature
 
     def create_distribution(self, state: str, actions: list[str], device):
         """
@@ -149,15 +165,14 @@ class CriticNetwork(nn.Module):
         # Language model for embeddings
         self.embedding = embedding
         embedding_dim = self.embedding.get_input_embeddings().embedding_dim
-        # GRU encoders for different state aspects (similar to DRRN)
-        self.state_encoder = nn.GRU(embedding_dim, hidden_dim, num_layers=3)
 
         # Value estimation layers
         self.hidden = nn.Sequential(
+            nn.Linear(embedding_dim, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
+            nn.GELU(),
         )
         self.value_estimator = nn.Linear(hidden_dim, 1)
         self.hidden_dim = hidden_dim
@@ -173,55 +188,29 @@ class CriticNetwork(nn.Module):
         self.hidden = self.hidden.to(device)
         self.value_estimator = self.value_estimator.to(device)
 
-    def packed_rnn(self, x, rnn, device):
-        """
-        Runs the provided rnn on the input x. Takes care of packing/unpacking.
-        x: list of unpadded input sequences or single sequence
-        Returns a tensor of size: batch_size x hidden_dim
-        """
-
-        # strings
-
-        inputs = self.tokenizer(x.state, return_tensors="pt", padding=True, truncation=True).to(device)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        embed = self.embedding(**inputs)["last_hidden_state"].permute(1, 0, 2).detach()
-        out, _ = rnn(embed)
-
-        # Get the last output for each sequence
-        if len(out.shape) == 3:
-            # Take the last timestep output
-            out = out[-1]  # [batch, hidden_dim]
-
-        return out
-
     def forward(self, state_data, device):
-        """
-        Estimate the value of the given state using GRU encoders.
-        Args:
-            state_data: string (single state description)
-            device: torch.device to run computation on.
-        Returns:
-            torch.Tensor: Estimated value of the state.
-        """
+        tokens = self.tokenizer(
+            state_data.state,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            return_attention_mask=True
+        )
 
-        # Handle different input formats
-        state_out = self.packed_rnn(state_data, self.state_encoder, device)
+        tokens = {k: v.to(device) for k, v in tokens.items()}
 
-        # state_out = state_out.sum(dim=-1) / state_out.shape[-1]  # Average over the hidden dimension
+        # Optional: detach if embedding is frozen
+        with torch.no_grad():
+            state_out = self.embedding(**tokens).last_hidden_state
 
-        # Ensure all outputs are on the correct device
-        state_out = state_out.to(device)
+        # CLS
+        state_out = state_out[:, 0, :]
 
-        # Handle batch dimension
-        if len(state_out.shape) == 1:
-            state_out = state_out.unsqueeze(0)
-
-        # Pass through final layers
+        # Forward through MLP
         z = self.hidden(state_out)
         value = self.value_estimator(z)
 
-        return value.flatten()[0]
-
+        return value.squeeze(-1).squeeze(-1)  # Remove the last dimension for scalar output
 
 class PPOLLMAgent(BaseAgent):
     """
@@ -246,6 +235,7 @@ class PPOLLMAgent(BaseAgent):
         )
         assert device.type == "cuda", "PPO_LLM requires a GPU for training."
         self.device = device
+        self.loss = kwargs.get("loss", "a2c")  # 'a2c' or 'ppo'
 
         self.tokenizer = (
             args.tokenizer
@@ -275,7 +265,7 @@ class PPOLLMAgent(BaseAgent):
         self.gamma = kwargs.get("gamma", 0.99)
         self.clip_epsilon = kwargs.get("clip_epsilon", 0.5)
         self.lambda_gae = kwargs.get("lambda_gae", 0.95)
-        self.entropy_coef = kwargs.get("entropy_coef", 0.001)
+        self.entropy_coef = kwargs.get("entropy_coef", 0.01)
 
         params = list(self.actor.parameters()) + list(self.critic.parameters())
         self.optimizer = torch.optim.Adam(
@@ -288,6 +278,15 @@ class PPOLLMAgent(BaseAgent):
         self.completed_episodes = []
         self.max_segment_length = kwargs.get("max_segment_length", 8)
         self.last_actions = []
+
+        self.lag = kwargs.get("lag", False)  # Whether to use Lagrangian multiplier for cost
+        self.cost_limit = kwargs.get("cost_limit", 25.0)  # Maximum allowed cost per episode
+        self.lagrange_lr = kwargs.get("lagrange_lr", 0.01)  # Learning rate for lambda
+        self.lagrange_init = kwargs.get("lagrange_init", 1.0)  # Initial value for lambda
+        self.lagrange_max = kwargs.get("lagrange_max", 100.0)  # Max value for lambda
+        self.lagrange_min = kwargs.get("lagrange_min", 0.0)    # Min value for lambda
+        self.lagrange_lambda = torch.tensor(self.lagrange_init, device=self.device, requires_grad=False)
+
 
     def _tokenize(self, text):
         """
@@ -360,7 +359,7 @@ class PPOLLMAgent(BaseAgent):
         if is_prior:
             # If this is a prior transition, we do not store it in the episode buffer.
             return
-        env_idx = getattr(transition.state, "env_idx", 0)
+        env_idx = transition.state.env_idx
         action_info = (
             self.last_actions[env_idx]
             if hasattr(self, "last_actions") and env_idx < len(self.last_actions)
@@ -393,6 +392,51 @@ class PPOLLMAgent(BaseAgent):
             # Action index {a} out of bounds for valid actions {va}.
             return torch.tensor(0.0, device=self.device), torch.tensor(0.0, device=self.device)
         return dist.log_prob(a), dist.entropy()
+    
+    def _compute_advantages(self, episode, gamma=None, lambda_gae=None):
+        gamma = gamma if gamma is not None else self.gamma
+        lambda_gae = lambda_gae if lambda_gae is not None else self.lambda_gae
+
+        rewards = [t.reward for t in episode]
+        values = [t.value for t in episode]
+        dones = [t.done for t in episode]
+        costs = [t.cost for t in episode]
+
+        # 🔁 Bootstrap if the episode was truncated
+        if dones[-1]:
+            next_value = 0
+        else:
+            with torch.no_grad():
+                final_state = episode[-1].state
+                next_value = self.critic(final_state
+                , self.device).item()
+
+        advantages = np.zeros(len(rewards), dtype=np.float32)
+        next_advantage = 0
+
+        for t in reversed(range(len(rewards))):
+            not_done = 1.0 - float(dones[t])
+            delta = rewards[t] + gamma * next_value * not_done - values[t]
+            advantages[t] = delta + gamma * lambda_gae * next_advantage * not_done
+            if self.lag:
+                # Adjust advantage based on cost
+                advantages[t] -= costs[t]
+            next_value = values[t]
+            next_advantage = advantages[t]
+
+        returns = np.array(advantages) + np.array(values)
+
+        std = advantages.std()
+        if std > 1e-6:
+            advantages = (advantages - advantages.mean()) / (std + 1e-8)
+
+        for i in range(len(episode)):
+            episode[i] = episode[i]._replace(
+                advantage=advantages[i], returns=returns[i]
+            )
+
+        return advantages, returns
+
 
     def update(self):
         """
@@ -405,7 +449,7 @@ class PPOLLMAgent(BaseAgent):
         total_loss = 0.0
         for episode in self.completed_episodes:
             # 4 updates
-            num_updates = 4
+            num_updates = 1
             for update in range(num_updates):
                 if len(episode) == 0:
                     continue
@@ -425,6 +469,10 @@ class PPOLLMAgent(BaseAgent):
                 returns = torch.tensor(
                     [t.returns for t in episode], device=self.device, dtype=torch.float32
                 )
+                costs = torch.tensor(
+                    [t.cost for t in episode], device=self.device, dtype=torch.float32
+                )
+                episode_cost = costs.sum().item()
 
                 action_logprob_entropies = [
                     # logprob, entropy
@@ -437,26 +485,61 @@ class PPOLLMAgent(BaseAgent):
                 entropies = torch.stack([
                     entropy for _, entropy in action_logprob_entropies
                 ])
+                
                 values = torch.stack([self.critic(s, self.device) for s in states])
-                ratio = torch.exp(logprobs - old_log_probs)
-                surrogate1 = ratio * advantages
-                surrogate2 = (
-                    torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
-                    * advantages
-                )
-                policy_loss = -torch.min(surrogate1, surrogate2).mean()
+                policy_loss = None
+                    
+                if self.loss == 'a2c':
+                    # A2C loss
+                    policy_loss = -(logprobs * advantages).mean()
+                elif self.loss == 'ppo':
+                    # PPO loss
+                    # Calculate the surrogate losses
+                    ratio = torch.exp(logprobs - old_log_probs)
+                    surrogate1 = ratio * advantages
+                    surrogate2 = (
+                        torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+                        * advantages
+                    )
+                    policy_loss = -torch.min(surrogate1, surrogate2).mean()
+                
+
                 value_loss = F.mse_loss(values, returns)
                 entropy_loss = self.entropy_coef * entropies.mean()
                 loss = policy_loss + value_loss - entropy_loss
                 print(
-                    f"Policy Loss: {policy_loss.item():.4f}, Value Loss: {value_loss.item():.4f}, "
-                    f"Entropy Loss: {entropy_loss.item():.4f}, Total Loss: {loss.item():.4f}"
+                    f"Update {update + 1}/{num_updates}, "
+                    f"Policy Loss: {policy_loss.item():.4f}, "
+                    f"Value Loss: {value_loss.item():.4f}, "
+                    f"Entropy Loss: {entropy_loss.item():.4f}, "
+                    f"Total Loss: {loss.item():.4f}, "
+                    f"Episode Cost: {episode_cost:.2f}"
                 )
                 self.optimizer.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+                nn.utils.clip_grad_norm_(
+                    list(self.actor.parameters()) + list(self.critic.parameters()),
+                    max_norm=0.5,
+                )
+                # print grad norms
+                actor_grad_norm_mean = 0.0
+                for name, param in self.actor.named_parameters():
+                    if param.grad is not None:
+                        actor_grad_norm_mean += param.grad.norm().item()
+                actor_grad_norm_mean /= len(list(self.actor.parameters()))
+                critic_grad_norm_mean = 0.0
+                for name, param in self.critic.named_parameters():
+                    if param.grad is not None:
+                        critic_grad_norm_mean += param.grad.norm().item()
+                critic_grad_norm_mean /= len(list(self.critic.parameters()))
+                print(f"Actor grad norm: {actor_grad_norm_mean:.4f}, Critic grad norm: {critic_grad_norm_mean:.4f}")
                 self.optimizer.step()
                 total_loss += loss.item()
+                
+                if self.lag:
+                    with torch.no_grad():
+                        self.lagrange_lambda += self.lagrange_lr * (episode_cost - self.cost_limit)
+                        self.lagrange_lambda.clamp_(self.lagrange_min, self.lagrange_max)
     
         self.completed_episodes = []
         # Clear the episode buffer
@@ -488,101 +571,3 @@ class PPOLLMAgent(BaseAgent):
                 (action, logprob, action_idx) if logprob_flag else (action, action_idx)
             )
         return (action, logprob) if logprob_flag else action
-
-    def _compute_advantages(self, episode, gamma=None, lambda_gae=None):
-        """
-        Compute GAE and returns for an episode. Updates episode transitions in-place.
-        Args:
-            episode: List of PPOLLMTransition objects for the episode.
-            gamma: Discount factor (optional).
-            lambda_gae: GAE lambda parameter (optional).
-        Returns:
-            tuple: (advantages, returns) as numpy arrays.
-        """
-        gamma = gamma if gamma is not None else self.gamma
-        lambda_gae = lambda_gae if lambda_gae is not None else self.lambda_gae
-        rewards = [t.reward for t in episode]
-        values = [t.value for t in episode]
-        dones = [t.done for t in episode]
-        advantages = np.zeros(len(rewards), dtype=np.float32)
-        returns = np.zeros(len(rewards), dtype=np.float32)
-        next_value = 0
-        next_advantage = 0
-        for t in reversed(range(len(rewards))):
-            done_mask = 0 if dones[t] else 1
-            delta = rewards[t] + gamma * next_value * done_mask - values[t]
-            advantages[t] = delta + gamma * lambda_gae * next_advantage * done_mask
-            returns[t] = rewards[t] + gamma * next_value * done_mask
-            next_value = values[t]
-            next_advantage = advantages[t]
-        if len(advantages) > 1:
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-        for i in range(len(episode)):
-            episode[i] = episode[i]._replace(
-                advantage=advantages[i], returns=returns[i]
-            )
-        return advantages, returns
-
-    # def _collect_trajectories(self, batch_size):
-    #     """
-    #     NOT USED IN TRAINING, USE FOR DEBUGGING!
-    #     Collect a batch of trajectories by interacting with the environment.
-    #     Args:
-    #         batch_size: Number of transitions to collect.
-    #     Returns:
-    #         list: List of TrajectoryStep objects.
-    #     """
-    #     trajectories = []
-    #     reset_result = self.env.reset()
-    #     state = reset_result[0] if isinstance(reset_result, tuple) else reset_result
-    #     for _ in range(batch_size):
-    #         info = self.env._get_info()
-    #         available_actions = info["game_state"]["choice_texts"]
-    #         action, logprob, action_idx = self._choose_action(
-    #             state, logprob_flag=True, return_idx=True
-    #         )
-    #         next_state, reward, done, _ = self.env.step(action_idx)
-    #         trajectories.append(
-    #             TrajectoryStep(
-    #                 state=state,
-    #                 action=action,
-    #                 reward=reward,
-    #                 done=done,
-    #                 next_state=next_state,
-    #                 logprob=logprob,
-    #                 available_actions=available_actions,
-    #             )
-    #         )
-    #         state = self.env.reset() if done else next_state
-    #         if isinstance(state, tuple):
-    #             state = state[0]
-    #     self.trajectories = trajectories
-    #     return trajectories
-
-    # def _compute_gaes(self, trajectories, returns_flag=False):
-    #     """
-    #     NOT USED IN TRAINING, USE FOR DEBUGGING!
-    #     Compute Generalized Advantage Estimates (GAEs) for a list of trajectories.
-    #     Args:
-    #         trajectories: List of TrajectoryStep objects.
-    #         returns_flag: If True, also return value estimates.
-    #     Returns:
-    #         torch.Tensor or tuple: GAE tensor (and returns tensor if returns_flag=True).
-    #     """
-    #     gaes = []
-    #     returns = []
-    #     gae = 0
-    #     values = [] if returns_flag else None
-    #     for i in reversed(range(len(trajectories))):
-    #         state, _, reward, done, next_state, *_ = trajectories[i]
-    #         value = self.critic(state, self.device)
-    #         if returns_flag:
-    #             values.insert(0, value)
-    #         next_value = 0 if done else self.critic(next_state, self.device)
-    #         delta = reward + self.gamma * next_value - value
-    #         gae = delta + self.gamma * self.lambda_gae * gae * (1 - done)
-    #         gaes.insert(0, gae)
-    #         returns.insert(0, gae + value)
-    #     gaes_tensor = torch.tensor(gaes, dtype=torch.float32)
-    #     returns_tensor = torch.tensor(returns, dtype=torch.float32)
-    #     return (gaes_tensor, returns_tensor) if returns_flag else gaes_tensor

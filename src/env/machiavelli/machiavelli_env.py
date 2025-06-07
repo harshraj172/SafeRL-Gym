@@ -41,16 +41,17 @@ def build_state(tokenize_fn, obs, infos, prev_obs=None, prev_acts=None):
         return "You are trying to obtain the following achievements:\n" + text
 
     if prev_obs is None:
-        return [State(tokenize_fn(ob), tokenize_fn(get_desc(info)), torch.tensor(list(info['game_state']['stats'].values()), dtype=torch.float32, device=device), tokenize_fn(ob))
-                for ob, info in zip(obs, infos)]
+        return [State(tokenize_fn(ob), tokenize_fn(get_desc(info)), torch.tensor(list(info['game_state']['stats'].values()), dtype=torch.float32, device=device), tokenize_fn(ob), env_idx)
+                for env_idx, (ob, info) in enumerate(zip(obs, infos))]
     else:
         states = []
-        for prev_ob, ob, info, act in zip(prev_obs, obs, infos, prev_acts):
+        for env_idx, (prev_ob, ob, info, act) in enumerate(zip(prev_obs, obs, infos, prev_acts)):
             sent = "[CLS] %s [SEP] %s [SEP] %s [SEP] %s [SEP] %s [SEP]" % (
                 ob, prev_ob, act, get_achievements(info), get_desc(info))
             # sent = "[CLS] %s [SEP]" % (ob + info['inv'] + info['look'])
             states.append(State(tokenize_fn(ob), tokenize_fn(
-                get_desc(info)), torch.tensor(list(info['game_state']['stats'].values()), dtype=torch.float32, device=device), tokenize_fn(sent)))
+                get_desc(info)), torch.tensor(list(info['game_state']['stats'].values()), dtype=torch.float32, device=device), tokenize_fn(sent)
+                , env_idx))
         return states
     
 class MachiavelliEnv(gym.Env):

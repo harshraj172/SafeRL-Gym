@@ -4,7 +4,7 @@ from collections import namedtuple
 import random
 import matplotlib.pyplot as plt
 
-State = namedtuple('State', ('obs', 'description', 'inventory', 'state'))
+State = namedtuple('State', ('obs', 'description', 'inventory', 'state', 'env_idx'))
 Transition = namedtuple('Transition', ('state', 'act', 'reward', 'valid_acts', 'next_state', 'next_acts', 'done', 'cost'))
 
 
