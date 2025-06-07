@@ -50,8 +50,7 @@ class DRRN(torch.nn.Module):
         if stats:
             x = [xi[:rnn.input_size] for xi in x] # TAYLOR - for some reason has longer inputs than rnn input size at times, truncating here
            
-            inp = torch.cat(x).unsqueeze(0)
-            print("inp:", inp.shape, inp)
+            inp = torch.stack(x).unsqueeze(0)
             _, out = rnn(inp)
             return out.squeeze(0)
         
@@ -86,7 +85,6 @@ class DRRN(torch.nn.Module):
         # Encode the various aspects of the state
         obs_out = self.packed_rnn(state.obs, self.obs_encoder, hidden='obs')
         look_out = self.packed_rnn(state.description, self.look_encoder)
-        print(state)
         inv_out = self.packed_rnn(
             state.inventory, self.inv_encoder, stats=True)
 
