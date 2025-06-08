@@ -31,7 +31,8 @@ from tqdm.auto import tqdm
 from src.agent.base import BaseAgent
 from src.agent.drrn import DRRNAgent 
 from src.agent.ppo import PPOAgent, PPOLagAgent
-from src.agent.ppo_llm import PPOLLMAgent, ActorNetwork, CriticNetwork
+from src.agent.ppo_llm import PPOLLMAgent
+from src.agent.a2c import A2CLLMAgent
 from src.env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
 from src.env.base import BaseEnv
 from src.env.test import SuperEasyEnv
@@ -289,11 +290,11 @@ def main():
     elif args.agent_type == 'PPO_LLM':
         agent = PPOLLMAgent(args=args, loss='ppo')
     elif args.agent_type == 'A2C_LLM':
-        agent = PPOLLMAgent(args=args, loss='a2c')
+        agent = A2CLLMAgent(args=args, loss='a2c')
     elif args.agent_type == 'PPO_LLM_LAG':
         agent = PPOLLMAgent(args=args, loss='ppo', lag=True)
     elif args.agent_type == 'A2C_LLM_LAG':
-        agent = PPOLLMAgent(args=args, loss='a2c', lag=True)
+        agent = A2CLLMAgent(args=args, loss='a2c', lag=True)
     else:
         agent = BaseAgent(args)
 

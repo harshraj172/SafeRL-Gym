@@ -465,7 +465,7 @@ class PPOLLMAgent(BaseAgent):
                 if len(episode) == 0:
                     continue
                 if episode[0].advantage is None:
-                    self._compute_advantages(episode)
+                    self._compute_td_advantages(episode)
                 states = [t.state for t in episode]
                 actions = torch.tensor(
                     [t.action for t in episode], device=self.device, dtype=torch.long
