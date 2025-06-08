@@ -315,8 +315,6 @@ class PPOLLMAgent(BaseAgent):
             ),
         ).to(self.device)
 
-        self.env = args.env
-
         self.gamma = kwargs.get("gamma", 0.99)
         self.clip_epsilon = kwargs.get("clip_epsilon", 0.5)
         self.lambda_gae = kwargs.get("lambda_gae", 0.95)
@@ -352,6 +350,8 @@ class PPOLLMAgent(BaseAgent):
         self.clip_valuef = kwargs.get(
             "clip_valuef", 100.0
         )  # Clipping value for value loss
+
+        self.vf_coef = kwargs.get("vf_coef", 0.25)
 
     def _tokenize(self, text):
         """
@@ -589,7 +589,7 @@ class PPOLLMAgent(BaseAgent):
                 vf_losses2 = (vpred_clipped - returns) ** 2
                 value_loss = torch.max(vf_losses1, vf_losses2).mean()
                 entropy_loss = self.entropy_coef * entropies.mean()
-                loss = policy_loss + value_loss - entropy_loss
+                loss = policy_loss + self.vf_coef * value_loss - entropy_loss
                 print(
                     f"Update {update + 1}/{num_updates}, "
                     f"Policy Loss: {policy_loss.item():.4f}, "
