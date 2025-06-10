@@ -520,36 +520,35 @@ class PPOLLMAgent(BaseAgent):
         for episode in self.completed_episodes:
             # 4 updates
             num_updates = 1
+            states = [t.state for t in episode]
+            actions = torch.tensor(
+                [t.action for t in episode], device=self.device, dtype=torch.long
+            )
+            valid_actions = [t.valid_actions for t in episode]
+            old_log_probs = torch.tensor(
+                [t.log_prob for t in episode],
+                device=self.device,
+                dtype=torch.float32,
+            )
+            advantages = torch.tensor(
+                [t.advantage for t in episode],
+                device=self.device,
+                dtype=torch.float32,
+            )
+            returns = torch.tensor(
+                [t.returns for t in episode],
+                device=self.device,
+                dtype=torch.float32,
+            )
+            costs = torch.tensor(
+                [t.cost for t in episode], device=self.device, dtype=torch.float32
+            )
+            episode_cost = costs.sum().item()
+            if episode[0].advantage is None:
+                self._compute_advantages(episode)
             for update in range(num_updates):
                 if len(episode) == 0:
                     continue
-                if episode[0].advantage is None:
-                    self._compute_advantages(episode)
-                states = [t.state for t in episode]
-                actions = torch.tensor(
-                    [t.action for t in episode], device=self.device, dtype=torch.long
-                )
-                valid_actions = [t.valid_actions for t in episode]
-                old_log_probs = torch.tensor(
-                    [t.log_prob for t in episode],
-                    device=self.device,
-                    dtype=torch.float32,
-                )
-                advantages = torch.tensor(
-                    [t.advantage for t in episode],
-                    device=self.device,
-                    dtype=torch.float32,
-                )
-                returns = torch.tensor(
-                    [t.returns for t in episode],
-                    device=self.device,
-                    dtype=torch.float32,
-                )
-                costs = torch.tensor(
-                    [t.cost for t in episode], device=self.device, dtype=torch.float32
-                )
-                episode_cost = costs.sum().item()
-
                 action_logprob_entropies = [
                     # logprob, entropy
                     self.compute_actions(s, va, a)
