@@ -13,6 +13,7 @@ from tqdm import tqdm
 import torch
 
 from src.agent.base import BaseAgent
+from src.agent.ppo_llm import PPOLLMAgent
 from src.env.machiavelli.config import MachiavelliConfig
 from src.env.machiavelli.machiavelli_env import MachiavelliEnv, Trajectory, build_state
 
@@ -81,8 +82,18 @@ def main():
             if "random" in args.agent_path.lower():
                 agent = BaseAgent({})
             if "ppo" in args.agent_path.lower():
-                agent = torch.load(args.agent_path, weights_only=False)
+                agent = PPOLLMAgent()
+                agent.actor = torch.load(
+                    args.agent_path[:-3] + "_actor" + args.agent_path[-3:],
+                    weights_only=False,
+                )
                 agent.actor = agent.actor.to(device)
+                agent.critic = torch.load(
+                    args.agent_path[:-3] + "_critic" + args.agent_path[-3:],
+                    weights_only=False,
+                )
+                agent.critic = agent.critic.to(device)
+
             if "drrn" in args.agent_path.lower():
                 agent = torch.load(args.agent_path, weights_only=False)
                 agent.network = agent.network.to(device)
