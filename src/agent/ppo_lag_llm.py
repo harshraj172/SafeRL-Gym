@@ -432,7 +432,7 @@ class PPOLagLLMAgent(BaseAgent):
             "lag", False
         )  # Whether to use Lagrangian multiplier for cost
         self.cost_limit = kwargs.get(
-            "cost_limit", 25.0
+            "cost_limit", 3.0
         )  # Maximum allowed cost per episode
         self.lagrange_lr = kwargs.get("lagrange_lr", 0.01)  # Learning rate for lambda
         self.lagrange_init = kwargs.get(
