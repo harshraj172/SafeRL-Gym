@@ -660,7 +660,6 @@ class PPOLagLLMAgent(BaseAgent):
         for episode in self.completed_episodes:
             if len(episode) == 0:
                 continue
-
             if episode[0].advantage is None:
                 self._compute_advantages(episode)
 
@@ -697,99 +696,104 @@ class PPOLagLLMAgent(BaseAgent):
             )
             episode_cost = costs.sum().item()
             total_episode_cost += episode_cost
+            num_updates = 10
+            for update in range(num_updates):
+                # Compute current policy outputs
+                action_logprob_entropies = [
+                    self.compute_actions(s, va, a)
+                    for s, va, a in zip(states, valid_actions, actions)
+                ]
+                logprobs = torch.stack(
+                    [logprob for logprob, _ in action_logprob_entropies]
+                )
+                entropies = torch.stack(
+                    [entropy for _, entropy in action_logprob_entropies]
+                )
 
-            # Compute current policy outputs
-            action_logprob_entropies = [
-                self.compute_actions(s, va, a)
-                for s, va, a in zip(states, valid_actions, actions)
-            ]
-            logprobs = torch.stack([logprob for logprob, _ in action_logprob_entropies])
-            entropies = torch.stack(
-                [entropy for _, entropy in action_logprob_entropies]
-            )
+                # Get value and cost value predictions
+                values = torch.stack([self.critic(s, self.device) for s in states])
+                cost_values = torch.stack(
+                    [self.cost_critic(s, self.device) for s in states]
+                )
 
-            # Get value and cost value predictions
-            values = torch.stack([self.critic(s, self.device) for s in states])
-            cost_values = torch.stack(
-                [self.cost_critic(s, self.device) for s in states]
-            )
+                # PPO policy loss (reward part)
+                ratio = torch.exp(logprobs - old_log_probs)
+                surrogate1 = ratio * advantages
+                surrogate2 = (
+                    torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+                    * advantages
+                )
+                policy_loss_reward = -torch.min(surrogate1, surrogate2).mean()
 
-            # PPO policy loss (reward part)
-            ratio = torch.exp(logprobs - old_log_probs)
-            surrogate1 = ratio * advantages
-            surrogate2 = (
-                torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
-                * advantages
-            )
-            policy_loss_reward = -torch.min(surrogate1, surrogate2).mean()
+                # PPO-Lag safety loss (cost part)
+                cost_surrogate = ratio * cost_advantages
+                safety_loss = (
+                    torch.mean(cost_surrogate) * self.pid_lagrangian.get_lambda()
+                )
 
-            # PPO-Lag safety loss (cost part)
-            cost_surrogate = ratio * cost_advantages
-            safety_loss = torch.mean(cost_surrogate) * self.pid_lagrangian.get_lambda()
+                # Rescaling trick (Alg. 1 from Stooke et al.)
+                if self.rescaling:
+                    rescaling_factor = 1.0 / (self.pid_lagrangian.get_lambda() + 1.0)
+                else:
+                    rescaling_factor = 1.0
 
-            # Rescaling trick (Alg. 1 from Stooke et al.)
-            if self.rescaling:
-                rescaling_factor = 1.0 / (self.pid_lagrangian.get_lambda() + 1.0)
-            else:
-                rescaling_factor = 1.0
+                # Total policy loss
+                policy_loss = rescaling_factor * (policy_loss_reward + safety_loss)
 
-            # Total policy loss
-            policy_loss = rescaling_factor * (policy_loss_reward + safety_loss)
+                # Value function losses
 
-            # Value function losses
+                # Value loss with clipping
+                vpred_clipped = torch.clamp(
+                    values,
+                    returns - self.clip_valuef,
+                    returns + self.clip_valuef,
+                )
+                vf_losses1 = (values - returns) ** 2
+                vf_losses2 = (vpred_clipped - returns) ** 2
+                value_loss = torch.max(vf_losses1, vf_losses2).mean()
 
-            # Value loss with clipping
-            vpred_clipped = torch.clamp(
-                values,
-                returns - self.clip_valuef,
-                returns + self.clip_valuef,
-            )
-            vf_losses1 = (values - returns) ** 2
-            vf_losses2 = (vpred_clipped - returns) ** 2
-            value_loss = torch.max(vf_losses1, vf_losses2).mean()
+                # Cost value loss with clipping
+                cost_vpred_clipped = torch.clamp(
+                    cost_values,
+                    cost_returns - self.clip_cost_valuef,
+                    cost_returns + self.clip_cost_valuef,
+                )
+                cost_vf_losses1 = (cost_values - cost_returns) ** 2
+                cost_vf_losses2 = (cost_vpred_clipped - cost_returns) ** 2
+                cost_value_loss = torch.max(cost_vf_losses1, cost_vf_losses2).mean()
 
-            # Cost value loss with clipping
-            cost_vpred_clipped = torch.clamp(
-                cost_values,
-                cost_returns - self.clip_cost_valuef,
-                cost_returns + self.clip_cost_valuef,
-            )
-            cost_vf_losses1 = (cost_values - cost_returns) ** 2
-            cost_vf_losses2 = (cost_vpred_clipped - cost_returns) ** 2
-            cost_value_loss = torch.max(cost_vf_losses1, cost_vf_losses2).mean()
+                # Entropy loss
+                entropy_loss = self.entropy_coef * entropies.mean()
 
-            # Entropy loss
-            entropy_loss = self.entropy_coef * entropies.mean()
+                # Total loss
+                total_loss_episode = (
+                    policy_loss
+                    + self.vf_coef * value_loss
+                    + self.cost_vf_coef * cost_value_loss
+                    - entropy_loss
+                )
 
-            # Total loss
-            total_loss_episode = (
-                policy_loss
-                + self.vf_coef * value_loss
-                + self.cost_vf_coef * cost_value_loss
-                - entropy_loss
-            )
+                # Backward pass
+                self.optimizer.zero_grad()
+                total_loss_episode.backward()
+                nn.utils.clip_grad_norm_(
+                    list(self.actor.parameters())
+                    + list(self.critic.parameters())
+                    + list(self.cost_critic.parameters()),
+                    max_norm=10.0,
+                )
+                self.optimizer.step()
 
-            # Backward pass
-            self.optimizer.zero_grad()
-            total_loss_episode.backward()
-            nn.utils.clip_grad_norm_(
-                list(self.actor.parameters())
-                + list(self.critic.parameters())
-                + list(self.cost_critic.parameters()),
-                max_norm=10.0,
-            )
-            self.optimizer.step()
+                total_loss += total_loss_episode.item()
 
-            total_loss += total_loss_episode.item()
-
-            print(
-                f"Episode Cost: {episode_cost:.2f}, "
-                f"Lambda: {self.pid_lagrangian.get_lambda():.4f}, "
-                f"Policy Loss: {policy_loss.item():.4f}, "
-                f"Safety Loss: {safety_loss.item():.4f}, "
-                f"Value Loss: {value_loss.item():.4f}, "
-                f"Cost Value Loss: {cost_value_loss.item():.4f}"
-            )
+                print(
+                    f"Episode Cost: {episode_cost:.2f}, "
+                    f"Lambda: {self.pid_lagrangian.get_lambda():.4f}, "
+                    f"Policy Loss: {policy_loss.item():.4f}, "
+                    f"Safety Loss: {safety_loss.item():.4f}, "
+                    f"Value Loss: {value_loss.item():.4f}, "
+                    f"Cost Value Loss: {cost_value_loss.item():.4f}"
+                )
 
         # Update Lagrangian multiplier based on average episode cost
         avg_episode_cost = total_episode_cost / max(len(self.completed_episodes), 1)
