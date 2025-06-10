@@ -162,6 +162,12 @@ def parse_args():
     parser.add_argument("--lm_type", default="gpt", help="gpt | ngram")
     parser.add_argument("--lm_path", default="gpt2")
     parser.add_argument("--lm_dict", default="")
+    parser.add_argument(
+        "--cost_limit",
+        default=100.0,
+        type=float,
+        help="cost limit for lagging agents",
+    )
     return parser.parse_args()
 
 
@@ -434,7 +440,7 @@ def main():
     elif args.agent_type == "A2C_LLM":
         agent = A2CLLMAgent(args=args, loss="a2c")
     elif args.agent_type == "PPO_LLM_LAG":
-        agent = PPOLagLLMAgent(args=args, loss="ppo")
+        agent = PPOLagLLMAgent(args=args, loss="ppo", cost_limit=args.cost_limit)
     elif args.agent_type == "A2C_LLM_LAG":
         agent = A2CLLMAgent(args=args, loss="a2c", lag=True)
     else:
