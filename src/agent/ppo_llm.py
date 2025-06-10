@@ -519,7 +519,7 @@ class PPOLLMAgent(BaseAgent):
         total_loss = 0.0
         for episode in self.completed_episodes:
             # 4 updates
-            num_updates = 1
+            num_updates = 10
             states = [t.state for t in episode]
             actions = torch.tensor(
                 [t.action for t in episode], device=self.device, dtype=torch.long
