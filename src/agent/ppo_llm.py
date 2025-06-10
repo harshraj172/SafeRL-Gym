@@ -295,7 +295,7 @@ class PPOLLMAgent(BaseAgent):
         self.tokenizer = (
             args.tokenizer
             if hasattr(args, "tokenizer")
-            else AutoTokenizer.from_pretrained(args.lm_name, model_max_length=512)
+            else AutoTokenizer.from_pretrained(args.lm_name, model_max_length=2048)
         )
         actor_model = (
             args.actor_model
@@ -311,7 +311,7 @@ class PPOLLMAgent(BaseAgent):
         self.critic = CriticNetwork(
             embedding=embedding,
             tokenizer=AutoTokenizer.from_pretrained(
-                "microsoft/deberta-v3-xsmall", model_max_length=512
+                "microsoft/deberta-v3-xsmall", model_max_length=2048
             ),
         ).to(self.device)
 
