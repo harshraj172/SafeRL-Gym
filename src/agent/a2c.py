@@ -1,5 +1,4 @@
 from collections import namedtuple
-from typing import Optional
 import numpy as np
 import torch
 import torch.nn as nn
@@ -39,53 +38,9 @@ TrajectoryStep = namedtuple(
     ],
 )
 
-
 def format_state(state):
     return state.state
     # return f"Observations: {state.obs}\nDescription: {state.description}\nInventory: {state.inventory}"
-
-
-def masked_mean(
-    values: torch.Tensor, mask: torch.Tensor, axis: Optional[bool] = None
-) -> torch.Tensor:
-    """Compute mean of tensor with a masked values."""
-    if axis is not None:
-        return (values * mask).sum(axis=axis) / mask.sum(axis=axis)
-    else:
-        return (values * mask).sum() / mask.sum()
-
-
-def masked_var(
-    values: torch.Tensor, mask: torch.Tensor, unbiased: bool = True
-) -> torch.Tensor:
-    """Compute variance of tensor with masked values."""
-    mean = masked_mean(values, mask)
-    centered_values = values - mean
-    variance = masked_mean(centered_values**2, mask)
-    if unbiased:
-        mask_sum = mask.sum()
-        if mask_sum == 0:
-            raise ValueError(
-                "The sum of the mask is zero, which can happen when `mini_batch_size=1`;"
-                "try increase the `mini_batch_size` or `gradient_accumulation_steps`"
-            )
-        # note that if mask_sum == 1, then there is a division by zero issue
-        # to avoid it you just need to use a larger minibatch_size
-        bessel_correction = mask_sum / (mask_sum - 1)
-        variance = variance * bessel_correction
-    return variance
-
-
-def masked_whiten(
-    values: torch.Tensor, mask: torch.Tensor, shift_mean: bool = True
-) -> torch.Tensor:
-    """Whiten values with masked values."""
-    mean, var = masked_mean(values, mask), masked_var(values, mask)
-    whitened = (values - mean) * torch.rsqrt(var + 1e-8)
-    if not shift_mean:
-        whitened += mean
-    return whitened
-
 
 class ActorNetwork(nn.Module):
     """
@@ -126,13 +81,12 @@ class ActorNetwork(nn.Module):
 
         state_tokens = {k: v.to(device) for k, v in state_tokens.items()}
         action_tokens = {k: v.to(device) for k, v in action_tokens.items()}
-        action_tokens["input_ids"] = action_tokens["input_ids"][:, 1:]
+        action_tokens["input_ids"] = action_tokens["input_ids"][:, 1:] 
         eos_token_id = self.tokenizer.eos_token_id
-        eos_tensor = torch.full(
-            (batch_size, 1), eos_token_id, dtype=torch.long, device=device
-        )
+        eos_tensor = torch.full((batch_size, 1), eos_token_id, dtype=torch.long, device=device)
         action_tokens["input_ids"] = torch.cat(
-            (action_tokens["input_ids"], eos_tensor), dim=1
+            (action_tokens["input_ids"], eos_tensor),
+            dim=1
         )
         # tokenized_length = action_tokens["attention_mask"].sum(dim=1)
         # action_tokens["input_ids"][torch.arange(batch_size, device=device), tokenized_length - 1] = (
@@ -162,17 +116,13 @@ class ActorNetwork(nn.Module):
         m = action_tokens["input_ids"].shape[1]  # action length
 
         # Next-token logits: [batch_size, m, vocab_size]
-        next_token_logits = logits[
-            :, k - 1 : -1, :
-        ]  # aligns each action token with prediction from previous
+        next_token_logits = logits[:, k - 1 : -1, :]  # aligns each action token with prediction from previous
 
         # Apply log-softmax over vocab
         log_probs = F.log_softmax(next_token_logits, dim=-1)
 
         # Action token ids: [batch_size, m]
-        action_token_indices = action_tokens["input_ids"].to(
-            device=device, dtype=torch.long
-        )
+        action_token_indices = action_tokens["input_ids"].to(device=device, dtype=torch.long)
 
         # Gather log-probs for the actual action tokens
         batch_size = action_token_indices.shape[0]
@@ -185,11 +135,10 @@ class ActorNetwork(nn.Module):
         ]
 
         # Mask padding tokens
-        masked_logprobs = masked_mean(
-            action_token_logprobs, action_tokens["attention_mask"], axis=1
-        )  # Mean over action tokens, ignoring padding: better for variable-length actions
+        masked_logprobs = action_token_logprobs * action_tokens["attention_mask"]
+
         # Return summed log-probs over tokens (or mean, scaled as needed)
-        return masked_logprobs / self.temperature
+        return masked_logprobs.sum(dim=1) / self.temperature
 
     def create_distribution(self, state: str, actions: list[str], device):
         """
@@ -203,7 +152,6 @@ class ActorNetwork(nn.Module):
         """
         logits = self.forward(state, actions, device)
         return torch.distributions.Categorical(logits=logits)
-
 
 class CriticNetwork(nn.Module):
     """
@@ -246,7 +194,7 @@ class CriticNetwork(nn.Module):
             return_tensors="pt",
             padding=True,
             truncation=True,
-            return_attention_mask=True,
+            return_attention_mask=True
         )
 
         tokens = {k: v.to(device) for k, v in tokens.items()}
@@ -262,10 +210,7 @@ class CriticNetwork(nn.Module):
         z = self.hidden(state_out)
         value = self.value_estimator(z)
 
-        return value.squeeze(-1).squeeze(
-            -1
-        )  # Remove the last dimension for scalar output
-
+        return value.squeeze(-1).squeeze(-1)  # Remove the last dimension for scalar output
 
 class PPOLLMAgent(BaseAgent):
     """
@@ -295,7 +240,7 @@ class PPOLLMAgent(BaseAgent):
         self.tokenizer = (
             args.tokenizer
             if hasattr(args, "tokenizer")
-            else AutoTokenizer.from_pretrained(args.lm_name, model_max_length=2048)
+            else AutoTokenizer.from_pretrained(args.lm_name, model_max_length=512)
         )
         actor_model = (
             args.actor_model
@@ -307,13 +252,15 @@ class PPOLLMAgent(BaseAgent):
         embedding = AutoModel.from_pretrained(
             "microsoft/deberta-v3-xsmall", output_hidden_states=True
         )
-
+        
         self.critic = CriticNetwork(
             embedding=embedding,
             tokenizer=AutoTokenizer.from_pretrained(
-                "microsoft/deberta-v3-xsmall", model_max_length=2048
+                "microsoft/deberta-v3-xsmall", model_max_length=512
             ),
         ).to(self.device)
+
+        self.env = args.env
 
         self.gamma = kwargs.get("gamma", 0.99)
         self.clip_epsilon = kwargs.get("clip_epsilon", 0.5)
@@ -332,26 +279,14 @@ class PPOLLMAgent(BaseAgent):
         self.max_segment_length = kwargs.get("max_segment_length", 8)
         self.last_actions = []
 
-        self.lag = kwargs.get(
-            "lag", False
-        )  # Whether to use Lagrangian multiplier for cost
-        self.cost_limit = kwargs.get(
-            "cost_limit", 25.0
-        )  # Maximum allowed cost per episode
+        self.lag = kwargs.get("lag", False)  # Whether to use Lagrangian multiplier for cost
+        self.cost_limit = kwargs.get("cost_limit", 25.0)  # Maximum allowed cost per episode
         self.lagrange_lr = kwargs.get("lagrange_lr", 0.01)  # Learning rate for lambda
-        self.lagrange_init = kwargs.get(
-            "lagrange_init", 1.0
-        )  # Initial value for lambda
+        self.lagrange_init = kwargs.get("lagrange_init", 1.0)  # Initial value for lambda
         self.lagrange_max = kwargs.get("lagrange_max", 100.0)  # Max value for lambda
-        self.lagrange_min = kwargs.get("lagrange_min", 0.0)  # Min value for lambda
-        self.lagrange_lambda = torch.tensor(
-            self.lagrange_init, device=self.device, requires_grad=False
-        )
-        self.clip_valuef = kwargs.get(
-            "clip_valuef", 100.0
-        )  # Clipping value for value loss
+        self.lagrange_min = kwargs.get("lagrange_min", 0.0)    # Min value for lambda
+        self.lagrange_lambda = torch.tensor(self.lagrange_init, device=self.device, requires_grad=False)
 
-        self.vf_coef = kwargs.get("vf_coef", 0.25)
 
     def _tokenize(self, text):
         """
@@ -446,10 +381,7 @@ class PPOLLMAgent(BaseAgent):
             returns=None,
         )
         self.episode_buffer[env_idx].append(ppo_llm_transition)
-        if (
-            transition.done
-            or len(self.episode_buffer[env_idx]) >= self.max_segment_length
-        ):
+        if transition.done or len(self.episode_buffer[env_idx]) >= self.max_segment_length:
             # End of episode, store the completed episode
             self.completed_episodes.append(self.episode_buffer[env_idx])
             self.episode_buffer[env_idx] = []
@@ -458,11 +390,9 @@ class PPOLLMAgent(BaseAgent):
         dist = self.actor.create_distribution(s, va, self.device)
         if a > len(va) - 1:
             # Action index {a} out of bounds for valid actions {va}.
-            return torch.tensor(0.0, device=self.device), torch.tensor(
-                0.0, device=self.device
-            )
+            return torch.tensor(0.0, device=self.device), torch.tensor(0.0, device=self.device)
         return dist.log_prob(a), dist.entropy()
-
+    
     def _compute_advantages(self, episode, gamma=None, lambda_gae=None):
         gamma = gamma if gamma is not None else self.gamma
         lambda_gae = lambda_gae if lambda_gae is not None else self.lambda_gae
@@ -478,7 +408,8 @@ class PPOLLMAgent(BaseAgent):
         else:
             with torch.no_grad():
                 final_state = episode[-1].state
-                next_value = self.critic(final_state, self.device).item()
+                next_value = self.critic(final_state
+                , self.device).item()
 
         advantages = np.zeros(len(rewards), dtype=np.float32)
         next_advantage = 0
@@ -495,18 +426,28 @@ class PPOLLMAgent(BaseAgent):
 
         returns = np.array(advantages) + np.array(values)
 
-        advantages = masked_whiten(
-            torch.tensor(advantages, device=self.device, dtype=torch.float32),
-            torch.tensor(
-                [1.0] * len(advantages), device=self.device, dtype=torch.float32
-            ),
-        )
+        std = advantages.std()
+        if std > 1e-6:
+            advantages = (advantages - advantages.mean()) / (std + 1e-8)
 
         for i in range(len(episode)):
             episode[i] = episode[i]._replace(
                 advantage=advantages[i], returns=returns[i]
             )
-        # return advantages, returns
+
+        return advantages, returns
+    
+    def _compute_td_advantages(self, episode: PPOLLMTransition, gamma=None):
+        gamma = self.gamma
+        for i, transition in enumerate(episode):
+            if i == len(episode) - 1 or transition.done:
+                next_value = 0
+            else:
+                next_value = episode[i + 1].value
+            td_error = transition.reward + gamma * next_value - transition.value
+            ret = transition.reward + gamma * next_value
+            episode[i] = transition._replace(advantage=td_error, returns=ret)
+
 
     def update(self):
         """
@@ -519,55 +460,50 @@ class PPOLLMAgent(BaseAgent):
         total_loss = 0.0
         for episode in self.completed_episodes:
             # 4 updates
-            num_updates = 10
-            states = [t.state for t in episode]
-            actions = torch.tensor(
-                [t.action for t in episode], device=self.device, dtype=torch.long
-            )
-            valid_actions = [t.valid_actions for t in episode]
-            old_log_probs = torch.tensor(
-                [t.log_prob for t in episode],
-                device=self.device,
-                dtype=torch.float32,
-            )
-            advantages = torch.tensor(
-                [t.advantage for t in episode],
-                device=self.device,
-                dtype=torch.float32,
-            )
-            returns = torch.tensor(
-                [t.returns for t in episode],
-                device=self.device,
-                dtype=torch.float32,
-            )
-            costs = torch.tensor(
-                [t.cost for t in episode], device=self.device, dtype=torch.float32
-            )
-            episode_cost = costs.sum().item()
-            if episode[0].advantage is None:
-                self._compute_advantages(episode)
+            num_updates = 1
             for update in range(num_updates):
                 if len(episode) == 0:
                     continue
+                if episode[0].advantage is None:
+                    self._compute_td_advantages(episode)
+                states = [t.state for t in episode]
+                actions = torch.tensor(
+                    [t.action for t in episode], device=self.device, dtype=torch.long
+                )
+                valid_actions = [t.valid_actions for t in episode]
+                old_log_probs = torch.tensor(
+                    [t.log_prob for t in episode], device=self.device, dtype=torch.float32
+                )
+                advantages = torch.tensor(
+                    [t.advantage for t in episode], device=self.device, dtype=torch.float32
+                )
+                returns = torch.tensor(
+                    [t.returns for t in episode], device=self.device, dtype=torch.float32
+                )
+                costs = torch.tensor(
+                    [t.cost for t in episode], device=self.device, dtype=torch.float32
+                )
+                episode_cost = costs.sum().item()
+
                 action_logprob_entropies = [
                     # logprob, entropy
                     self.compute_actions(s, va, a)
                     for s, va, a in zip(states, valid_actions, actions)
                 ]
-                logprobs = torch.stack(
-                    [logprob for logprob, _ in action_logprob_entropies]
-                )
-                entropies = torch.stack(
-                    [entropy for _, entropy in action_logprob_entropies]
-                )
-
+                logprobs = torch.stack([
+                    logprob for logprob, _ in action_logprob_entropies
+                ])
+                entropies = torch.stack([
+                    entropy for _, entropy in action_logprob_entropies
+                ])
+                
                 values = torch.stack([self.critic(s, self.device) for s in states])
                 policy_loss = None
-
-                if self.loss == "a2c":
+                    
+                if self.loss == 'a2c':
                     # A2C loss
                     policy_loss = -(logprobs * advantages).mean()
-                elif self.loss == "ppo":
+                elif self.loss == 'ppo':
                     # PPO loss
                     # Calculate the surrogate losses
                     ratio = torch.exp(logprobs - old_log_probs)
@@ -577,18 +513,11 @@ class PPOLLMAgent(BaseAgent):
                         * advantages
                     )
                     policy_loss = -torch.min(surrogate1, surrogate2).mean()
+                
 
-                # PPO-style value loss clipping
-                vpred_clipped = torch.clamp(
-                    values,
-                    returns - self.clip_valuef,
-                    returns + self.clip_valuef,
-                )
-                vf_losses1 = (values - returns) ** 2
-                vf_losses2 = (vpred_clipped - returns) ** 2
-                value_loss = torch.max(vf_losses1, vf_losses2).mean()
+                value_loss = F.mse_loss(values, returns)
                 entropy_loss = self.entropy_coef * entropies.mean()
-                loss = policy_loss + self.vf_coef * value_loss - entropy_loss
+                loss = policy_loss + value_loss - entropy_loss
                 print(
                     f"Update {update + 1}/{num_updates}, "
                     f"Policy Loss: {policy_loss.item():.4f}, "
@@ -601,7 +530,7 @@ class PPOLLMAgent(BaseAgent):
                 loss.backward()
                 nn.utils.clip_grad_norm_(
                     list(self.actor.parameters()) + list(self.critic.parameters()),
-                    max_norm=10.0,
+                    max_norm=0.5,
                 )
                 # print grad norms
                 actor_grad_norm_mean = 0.0
@@ -614,21 +543,15 @@ class PPOLLMAgent(BaseAgent):
                     if param.grad is not None:
                         critic_grad_norm_mean += param.grad.norm().item()
                 critic_grad_norm_mean /= len(list(self.critic.parameters()))
-                print(
-                    f"Actor grad norm: {actor_grad_norm_mean:.4f}, Critic grad norm: {critic_grad_norm_mean:.4f}"
-                )
+                print(f"Actor grad norm: {actor_grad_norm_mean:.4f}, Critic grad norm: {critic_grad_norm_mean:.4f}")
                 self.optimizer.step()
                 total_loss += loss.item()
-
+                
                 if self.lag:
                     with torch.no_grad():
-                        self.lagrange_lambda += self.lagrange_lr * (
-                            episode_cost - self.cost_limit
-                        )
-                        self.lagrange_lambda.clamp_(
-                            self.lagrange_min, self.lagrange_max
-                        )
-
+                        self.lagrange_lambda += self.lagrange_lr * (episode_cost - self.cost_limit)
+                        self.lagrange_lambda.clamp_(self.lagrange_min, self.lagrange_max)
+    
         self.completed_episodes = []
         # Clear the episode buffer
         self.episode_buffer = [[] for _ in range(len(self.episode_buffer))]

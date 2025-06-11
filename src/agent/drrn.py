@@ -49,6 +49,7 @@ class DRRN(torch.nn.Module):
         """
         if stats:
             x = [xi[:rnn.input_size] for xi in x] # TAYLOR - for some reason has longer inputs than rnn input size at times, truncating here
+           
             inp = torch.stack(x).unsqueeze(0)
             _, out = rnn(inp)
             return out.squeeze(0)

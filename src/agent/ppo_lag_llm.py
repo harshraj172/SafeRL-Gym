@@ -15,13 +15,16 @@ PPOLLMTransition = namedtuple(
         "action",
         "log_prob",
         "value",
+        "cost_value",  # Add cost value prediction
         "reward",
         "valid_actions",
         "done",
         "next_state",
         "next_acts",
         "advantage",
+        "cost_advantage",  # Add cost advantage
         "returns",
+        "cost_returns",  # Add cost returns
         "cost",
     ),
 )
@@ -85,6 +88,105 @@ def masked_whiten(
     if not shift_mean:
         whitened += mean
     return whitened
+
+
+class CostCriticNetwork(nn.Module):
+    """
+    Cost critic network for estimating cost values (constraint violations).
+    Similar to value critic but predicts expected cost instead of reward.
+    """
+
+    def __init__(self, tokenizer, embedding, hidden_dim=128):
+        super().__init__()
+        self.tokenizer = tokenizer
+        self.embedding = embedding
+        embedding_dim = self.embedding.get_input_embeddings().embedding_dim
+
+        self.hidden = nn.Sequential(
+            nn.Linear(embedding_dim, hidden_dim),
+            nn.GELU(),
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+        )
+        self.cost_estimator = nn.Linear(hidden_dim, 1)
+
+    def forward(self, state_data, device):
+        tokens = self.tokenizer(
+            state_data.state,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            return_attention_mask=True,
+        )
+        tokens = {k: v.to(device) for k, v in tokens.items()}
+
+        with torch.no_grad():
+            state_out = self.embedding(**tokens).last_hidden_state
+
+        state_out = state_out[:, 0, :]  # CLS token
+        z = self.hidden(state_out)
+        cost_value = self.cost_estimator(z)
+
+        return cost_value.squeeze(-1).squeeze(-1)
+
+
+class PIDLagrangianOptimizer:
+    """
+    PID-based Lagrangian multiplier optimizer for constraint satisfaction.
+    """
+
+    def __init__(self, kp=0.05, ki=0.0005, kd=0.1, alpha=0.9):
+        self.kp = kp  # Proportional gain
+        self.ki = ki  # Integral gain
+        self.kd = kd  # Derivative gain
+        self.alpha = alpha  # Moving average factor for derivative
+
+        self.lambda_val = 1.0  # Lagrangian multiplier
+        self.integral = 0.0
+        self.prev_error = 0.0
+        self.derivative_ma = 0.0  # Moving average of derivative
+
+    def step(self, cost_val, cost_limit):
+        """Update Lagrangian multiplier using PID control."""
+        error = cost_val - cost_limit
+
+        # Proportional term
+        proportional = self.kp * error
+
+        # Integral term (accumulated error)
+        self.integral += error
+        integral_term = self.ki * self.integral
+
+        # Derivative term (rate of change)
+        derivative = error - self.prev_error
+        self.derivative_ma = (
+            self.alpha * self.derivative_ma + (1 - self.alpha) * derivative
+        )
+        derivative_term = self.kd * self.derivative_ma
+
+        # Update lambda
+        self.lambda_val += proportional + integral_term + derivative_term
+        self.lambda_val = max(0.0, self.lambda_val)  # Keep non-negative
+
+        self.prev_error = error
+
+    def get_lambda(self):
+        return self.lambda_val
+
+    def state_dict(self):
+        return {
+            "lambda_val": self.lambda_val,
+            "integral": self.integral,
+            "prev_error": self.prev_error,
+            "derivative_ma": self.derivative_ma,
+        }
+
+    def load_state_dict(self, state):
+        self.lambda_val = state["lambda_val"]
+        self.integral = state["integral"]
+        self.prev_error = state["prev_error"]
+        self.derivative_ma = state["derivative_ma"]
 
 
 class ActorNetwork(nn.Module):
@@ -267,7 +369,7 @@ class CriticNetwork(nn.Module):
         )  # Remove the last dimension for scalar output
 
 
-class PPOLLMAgent(BaseAgent):
+class PPOLagLLMAgent(BaseAgent):
     """
     PPO agent using language models for both actor and critic.
     Handles action selection, experience storage, advantage estimation, and PPO updates.
@@ -320,12 +422,6 @@ class PPOLLMAgent(BaseAgent):
         self.lambda_gae = kwargs.get("lambda_gae", 0.95)
         self.entropy_coef = kwargs.get("entropy_coef", 0.01)
 
-        params = list(self.actor.parameters()) + list(self.critic.parameters())
-        self.optimizer = torch.optim.Adam(
-            params,
-            lr=kwargs.get("learning_rate", 3e-5),
-        )
-
         self.trajectories = []
         self.episode_buffer = [[] for _ in range(args.num_envs)]
         self.completed_episodes = []
@@ -336,7 +432,7 @@ class PPOLLMAgent(BaseAgent):
             "lag", False
         )  # Whether to use Lagrangian multiplier for cost
         self.cost_limit = kwargs.get(
-            "cost_limit", 25.0
+            "cost_limit", 3.0
         )  # Maximum allowed cost per episode
         self.lagrange_lr = kwargs.get("lagrange_lr", 0.01)  # Learning rate for lambda
         self.lagrange_init = kwargs.get(
@@ -351,7 +447,39 @@ class PPOLLMAgent(BaseAgent):
             "clip_valuef", 100.0
         )  # Clipping value for value loss
 
+        self.clip_cost_valuef = kwargs.get("clip_cost_valuef", 100.0)
+
         self.vf_coef = kwargs.get("vf_coef", 0.25)
+
+        cost_embedding = AutoModel.from_pretrained(
+            "microsoft/deberta-v3-xsmall", output_hidden_states=True
+        )
+
+        self.cost_critic = CostCriticNetwork(
+            embedding=cost_embedding,
+            tokenizer=AutoTokenizer.from_pretrained(
+                "microsoft/deberta-v3-xsmall", model_max_length=2048
+            ),
+        ).to(self.device)
+
+        # Replace simple Lagrangian with PID optimizer
+        self.pid_lagrangian = PIDLagrangianOptimizer(
+            kp=kwargs.get("lagrange_kp", 0.05),
+            ki=kwargs.get("lagrange_ki", 0.0005),
+            kd=kwargs.get("lagrange_kd", 0.1),
+        )
+
+        # Update optimizer to include cost critic
+        params = (
+            list(self.actor.parameters())
+            + list(self.critic.parameters())
+            + list(self.cost_critic.parameters())
+        )
+        self.optimizer = torch.optim.Adam(params, lr=kwargs.get("learning_rate", 3e-5))
+
+        # PPO-Lag specific parameters
+        self.rescaling = kwargs.get("rescaling", True)  # Rescaling trick
+        self.cost_vf_coef = kwargs.get("cost_vf_coef", 0.25)
 
     def _tokenize(self, text):
         """
@@ -375,21 +503,11 @@ class PPOLLMAgent(BaseAgent):
 
     @torch.no_grad()
     def act(self, states, poss_acts, lm=None, *args, **kwargs):
-        """
-        Select actions for a batch of states and possible actions.
-        Args:
-            states: List of state strings.
-            poss_acts: List of lists of possible actions for each state.
-            lm: (Unused) Placeholder for compatibility.
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-        Returns:
-            tuple: (actions, action indices, log-probabilities)
-        """
         act_ids = []
         action_idxs = []
         log_probs = []
         self.last_actions = []
+
         for i, (state, actions) in enumerate(zip(states, poss_acts)):
             action, logprob, action_idx = self._choose_action(
                 state, actions, logprob_flag=True, return_idx=True
@@ -397,33 +515,26 @@ class PPOLLMAgent(BaseAgent):
             act_ids.append(action)
             action_idxs.append(action_idx)
             log_probs.append(logprob)
+
+            # Get both value and cost value predictions
+            value = self.critic(state, self.device).item()
+            cost_value = self.cost_critic(state, self.device).item()
+
             self.last_actions.append(
                 {
                     "action": action_idx,
                     "log_prob": logprob,
-                    "value": self.critic(state, self.device).item(),
+                    "value": value,
+                    "cost_value": cost_value,
                 }
             )
+
         return act_ids, action_idxs, log_probs
 
     def observe(self, transition, is_prior=False):
-        """
-        Store a transition in the episode buffer and handle episode completion.
-
-        Args:
-            transition: An object with at least the following attributes:
-                - state: The current environment state (may have 'env_idx' attribute for multi-env).
-                - reward: The reward received after taking the action (float).
-                - done: Whether the episode has ended (bool).
-                - next_state: The next environment state after the action.
-                - valid_acts: (Optional) List of possible actions for the next state.
-                - next_acts: (Optional) List of possible actions for the next state.
-                - cost: (Optional) Cost associated with the transition (float, default 0).
-            is_prior: Unused. Present for compatibility with some interfaces.
-        """
         if is_prior:
-            # If this is a prior transition, we do not store it in the episode buffer.
             return
+
         env_idx = transition.state.env_idx
         action_info = (
             self.last_actions[env_idx]
@@ -436,6 +547,7 @@ class PPOLLMAgent(BaseAgent):
             action=action_info["action"] if action_info else None,
             log_prob=action_info["log_prob"] if action_info else None,
             value=action_info["value"] if action_info else None,
+            cost_value=action_info["cost_value"] if action_info else None,
             reward=transition.reward,
             valid_actions=getattr(transition, "valid_acts", None),
             done=transition.done,
@@ -443,14 +555,17 @@ class PPOLLMAgent(BaseAgent):
             next_acts=getattr(transition, "next_acts", None),
             cost=getattr(transition, "cost", 0),
             advantage=None,
+            cost_advantage=None,
             returns=None,
+            cost_returns=None,
         )
+
         self.episode_buffer[env_idx].append(ppo_llm_transition)
+
         if (
             transition.done
             or len(self.episode_buffer[env_idx]) >= self.max_segment_length
         ):
-            # End of episode, store the completed episode
             self.completed_episodes.append(self.episode_buffer[env_idx])
             self.episode_buffer[env_idx] = []
 
@@ -468,18 +583,22 @@ class PPOLLMAgent(BaseAgent):
         lambda_gae = lambda_gae if lambda_gae is not None else self.lambda_gae
 
         rewards = [t.reward for t in episode]
-        values = [t.value for t in episode]
-        dones = [t.done for t in episode]
         costs = [t.cost for t in episode]
+        values = [t.value for t in episode]
+        cost_values = [t.cost_value for t in episode]
+        dones = [t.done for t in episode]
 
-        # 🔁 Bootstrap if the episode was truncated
+        # Bootstrap for both reward and cost
         if dones[-1]:
             next_value = 0
+            next_cost_value = 0
         else:
             with torch.no_grad():
                 final_state = episode[-1].state
                 next_value = self.critic(final_state, self.device).item()
+                next_cost_value = self.cost_critic(final_state, self.device).item()
 
+        # Compute reward advantages and returns
         advantages = np.zeros(len(rewards), dtype=np.float32)
         next_advantage = 0
 
@@ -487,14 +606,27 @@ class PPOLLMAgent(BaseAgent):
             not_done = 1.0 - float(dones[t])
             delta = rewards[t] + gamma * next_value * not_done - values[t]
             advantages[t] = delta + gamma * lambda_gae * next_advantage * not_done
-            if self.lag:
-                # Adjust advantage based on cost
-                advantages[t] -= costs[t]
             next_value = values[t]
             next_advantage = advantages[t]
 
         returns = np.array(advantages) + np.array(values)
 
+        # Compute cost advantages and returns
+        cost_advantages = np.zeros(len(costs), dtype=np.float32)
+        next_cost_advantage = 0
+
+        for t in reversed(range(len(costs))):
+            not_done = 1.0 - float(dones[t])
+            cost_delta = costs[t] + gamma * next_cost_value * not_done - cost_values[t]
+            cost_advantages[t] = (
+                cost_delta + gamma * lambda_gae * next_cost_advantage * not_done
+            )
+            next_cost_value = cost_values[t]
+            next_cost_advantage = cost_advantages[t]
+
+        cost_returns = np.array(cost_advantages) + np.array(cost_values)
+
+        # Normalize advantages
         advantages = masked_whiten(
             torch.tensor(advantages, device=self.device, dtype=torch.float32),
             torch.tensor(
@@ -502,55 +634,72 @@ class PPOLLMAgent(BaseAgent):
             ),
         )
 
+        cost_advantages = masked_whiten(
+            torch.tensor(cost_advantages, device=self.device, dtype=torch.float32),
+            torch.tensor(
+                [1.0] * len(cost_advantages), device=self.device, dtype=torch.float32
+            ),
+        )
+
+        # Update episode with computed advantages and returns
         for i in range(len(episode)):
             episode[i] = episode[i]._replace(
-                advantage=advantages[i], returns=returns[i]
+                advantage=advantages[i],
+                cost_advantage=cost_advantages[i],
+                returns=returns[i],
+                cost_returns=cost_returns[i],
             )
-        # return advantages, returns
 
     def update(self):
-        """
-        Perform PPO update using completed episodes.
-        Returns:
-            float: Total loss over all episodes.
-        """
         if not self.completed_episodes:
             return 0.0
+
         total_loss = 0.0
+        total_episode_cost = 0.0
+
         for episode in self.completed_episodes:
-            # 4 updates
-            num_updates = 10
+            if len(episode) == 0:
+                continue
+            if episode[0].advantage is None:
+                self._compute_advantages(episode)
+
+            # Extract episode data
             states = [t.state for t in episode]
             actions = torch.tensor(
                 [t.action for t in episode], device=self.device, dtype=torch.long
             )
             valid_actions = [t.valid_actions for t in episode]
             old_log_probs = torch.tensor(
-                [t.log_prob for t in episode],
-                device=self.device,
-                dtype=torch.float32,
+                [t.log_prob for t in episode], device=self.device, dtype=torch.float32
             )
+
             advantages = torch.tensor(
-                [t.advantage for t in episode],
+                [t.advantage for t in episode], device=self.device, dtype=torch.float32
+            )
+            cost_advantages = torch.tensor(
+                [t.cost_advantage for t in episode],
                 device=self.device,
                 dtype=torch.float32,
             )
+
             returns = torch.tensor(
-                [t.returns for t in episode],
+                [t.returns for t in episode], device=self.device, dtype=torch.float32
+            )
+            cost_returns = torch.tensor(
+                [t.cost_returns for t in episode],
                 device=self.device,
                 dtype=torch.float32,
             )
+
             costs = torch.tensor(
                 [t.cost for t in episode], device=self.device, dtype=torch.float32
             )
             episode_cost = costs.sum().item()
-            if episode[0].advantage is None:
-                self._compute_advantages(episode)
+            total_episode_cost += episode_cost
+            num_updates = 10
             for update in range(num_updates):
-                if len(episode) == 0:
-                    continue
+                # Compute current policy outputs
                 action_logprob_entropies = [
-                    # logprob, entropy
                     self.compute_actions(s, va, a)
                     for s, va, a in zip(states, valid_actions, actions)
                 ]
@@ -561,24 +710,39 @@ class PPOLLMAgent(BaseAgent):
                     [entropy for _, entropy in action_logprob_entropies]
                 )
 
+                # Get value and cost value predictions
                 values = torch.stack([self.critic(s, self.device) for s in states])
-                policy_loss = None
+                cost_values = torch.stack(
+                    [self.cost_critic(s, self.device) for s in states]
+                )
 
-                if self.loss == "a2c":
-                    # A2C loss
-                    policy_loss = -(logprobs * advantages).mean()
-                elif self.loss == "ppo":
-                    # PPO loss
-                    # Calculate the surrogate losses
-                    ratio = torch.exp(logprobs - old_log_probs)
-                    surrogate1 = ratio * advantages
-                    surrogate2 = (
-                        torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
-                        * advantages
-                    )
-                    policy_loss = -torch.min(surrogate1, surrogate2).mean()
+                # PPO policy loss (reward part)
+                ratio = torch.exp(logprobs - old_log_probs)
+                surrogate1 = ratio * advantages
+                surrogate2 = (
+                    torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+                    * advantages
+                )
+                policy_loss_reward = -torch.min(surrogate1, surrogate2).mean()
 
-                # PPO-style value loss clipping
+                # PPO-Lag safety loss (cost part)
+                cost_surrogate = ratio * cost_advantages
+                safety_loss = (
+                    torch.mean(cost_surrogate) * self.pid_lagrangian.get_lambda()
+                )
+
+                # Rescaling trick (Alg. 1 from Stooke et al.)
+                if self.rescaling:
+                    rescaling_factor = 1.0 / (self.pid_lagrangian.get_lambda() + 1.0)
+                else:
+                    rescaling_factor = 1.0
+
+                # Total policy loss
+                policy_loss = rescaling_factor * (policy_loss_reward + safety_loss)
+
+                # Value function losses
+
+                # Value loss with clipping
                 vpred_clipped = torch.clamp(
                     values,
                     returns - self.clip_valuef,
@@ -587,51 +751,58 @@ class PPOLLMAgent(BaseAgent):
                 vf_losses1 = (values - returns) ** 2
                 vf_losses2 = (vpred_clipped - returns) ** 2
                 value_loss = torch.max(vf_losses1, vf_losses2).mean()
-                entropy_loss = self.entropy_coef * entropies.mean()
-                loss = policy_loss + self.vf_coef * value_loss - entropy_loss
-                print(
-                    f"Update {update + 1}/{num_updates}, "
-                    f"Policy Loss: {policy_loss.item():.4f}, "
-                    f"Value Loss: {value_loss.item():.4f}, "
-                    f"Entropy Loss: {entropy_loss.item():.4f}, "
-                    f"Total Loss: {loss.item():.4f}, "
-                    f"Episode Cost: {episode_cost:.2f}"
+
+                # Cost value loss with clipping
+                cost_vpred_clipped = torch.clamp(
+                    cost_values,
+                    cost_returns - self.clip_cost_valuef,
+                    cost_returns + self.clip_cost_valuef,
                 )
+                cost_vf_losses1 = (cost_values - cost_returns) ** 2
+                cost_vf_losses2 = (cost_vpred_clipped - cost_returns) ** 2
+                cost_value_loss = torch.max(cost_vf_losses1, cost_vf_losses2).mean()
+
+                # Entropy loss
+                entropy_loss = self.entropy_coef * entropies.mean()
+
+                # Total loss
+                total_loss_episode = (
+                    policy_loss
+                    + self.vf_coef * value_loss
+                    + self.cost_vf_coef * cost_value_loss
+                    - entropy_loss
+                )
+
+                # Backward pass
                 self.optimizer.zero_grad()
-                loss.backward()
+                total_loss_episode.backward()
                 nn.utils.clip_grad_norm_(
-                    list(self.actor.parameters()) + list(self.critic.parameters()),
+                    list(self.actor.parameters())
+                    + list(self.critic.parameters())
+                    + list(self.cost_critic.parameters()),
                     max_norm=10.0,
                 )
-                # print grad norms
-                actor_grad_norm_mean = 0.0
-                for name, param in self.actor.named_parameters():
-                    if param.grad is not None:
-                        actor_grad_norm_mean += param.grad.norm().item()
-                actor_grad_norm_mean /= len(list(self.actor.parameters()))
-                critic_grad_norm_mean = 0.0
-                for name, param in self.critic.named_parameters():
-                    if param.grad is not None:
-                        critic_grad_norm_mean += param.grad.norm().item()
-                critic_grad_norm_mean /= len(list(self.critic.parameters()))
-                print(
-                    f"Actor grad norm: {actor_grad_norm_mean:.4f}, Critic grad norm: {critic_grad_norm_mean:.4f}"
-                )
                 self.optimizer.step()
-                total_loss += loss.item()
 
-                if self.lag:
-                    with torch.no_grad():
-                        self.lagrange_lambda += self.lagrange_lr * (
-                            episode_cost - self.cost_limit
-                        )
-                        self.lagrange_lambda.clamp_(
-                            self.lagrange_min, self.lagrange_max
-                        )
+                total_loss += total_loss_episode.item()
 
+                print(
+                    f"Episode Cost: {episode_cost:.2f}, "
+                    f"Lambda: {self.pid_lagrangian.get_lambda():.4f}, "
+                    f"Policy Loss: {policy_loss.item():.4f}, "
+                    f"Safety Loss: {safety_loss.item():.4f}, "
+                    f"Value Loss: {value_loss.item():.4f}, "
+                    f"Cost Value Loss: {cost_value_loss.item():.4f}"
+                )
+
+        # Update Lagrangian multiplier based on average episode cost
+        avg_episode_cost = total_episode_cost / max(len(self.completed_episodes), 1)
+        self.pid_lagrangian.step(avg_episode_cost, self.cost_limit)
+
+        # Clear completed episodes
         self.completed_episodes = []
-        # Clear the episode buffer
         self.episode_buffer = [[] for _ in range(len(self.episode_buffer))]
+
         return total_loss
 
     def _choose_action(self, state, actions=None, logprob_flag=False, return_idx=False):

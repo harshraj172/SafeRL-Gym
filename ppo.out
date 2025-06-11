@@ -1,0 +1,1455 @@
+No regularization
+-----------------------------
+| Cost           | 51       |
+| EpisodeLength  | 100      |
+| EpisodeScore   | 167      |
+| FPS            | 58       |
+| Loss           | 0.00489  |
+| Max score seen | 300      |
+| NumAch         | 4        |
+| Reward         | 235      |
+| Step           | 100      |
+-----------------------------
+-----------------------------
+| Cost           | 33       |
+| EpisodeLength  | 194      |
+| EpisodeScore   | 218      |
+| FPS            | 54       |
+| Loss           | 0.0235   |
+| Max score seen | 410      |
+| NumAch         | 8        |
+| Reward         | 410      |
+| Step           | 200      |
+-----------------------------
+-----------------------------
+| Cost           | 38       |
+| EpisodeLength  | 298      |
+| EpisodeScore   | 365      |
+| FPS            | 52.6     |
+| Loss           | 1.44     |
+| Max score seen | 535      |
+| NumAch         | 9        |
+| Reward         | 495      |
+| Step           | 300      |
+-----------------------------
+-----------------------------
+| Cost           | 37       |
+| EpisodeLength  | 387      |
+| EpisodeScore   | 279      |
+| FPS            | 52       |
+| Loss           | 11.1     |
+| Max score seen | 535      |
+| NumAch         | 5        |
+| Reward         | 185      |
+| Step           | 400      |
+-----------------------------
+-----------------------------
+| Cost           | 35       |
+| EpisodeLength  | 484      |
+| EpisodeScore   | 342      |
+| FPS            | 51.5     |
+| Loss           | 0.759    |
+| Max score seen | 605      |
+| NumAch         | 11       |
+| Reward         | 605      |
+| Step           | 500      |
+-----------------------------
+-----------------------------
+| Cost           | 43       |
+| EpisodeLength  | 591      |
+| EpisodeScore   | 346      |
+| FPS            | 51.2     |
+| Loss           | 7.12     |
+| Max score seen | 645      |
+| NumAch         | 9        |
+| Reward         | 480      |
+| Step           | 600      |
+-----------------------------
+-----------------------------
+| Cost           | 35       |
+| EpisodeLength  | 695      |
+| EpisodeScore   | 326      |
+| FPS            | 50.8     |
+| Loss           | 2.58     |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 145      |
+| Step           | 700      |
+-----------------------------
+-----------------------------
+| Cost           | 49       |
+| EpisodeLength  | 794      |
+| EpisodeScore   | 281      |
+| FPS            | 50.6     |
+| Loss           | 0.128    |
+| Max score seen | 645      |
+| NumAch         | 4        |
+| Reward         | 145      |
+| Step           | 800      |
+-----------------------------
+-----------------------------
+| Cost           | 24       |
+| EpisodeLength  | 897      |
+| EpisodeScore   | 336      |
+| FPS            | 50.5     |
+| Loss           | 0.111    |
+| Max score seen | 645      |
+| NumAch         | 4        |
+| Reward         | 55       |
+| Step           | 900      |
+-----------------------------
+-----------------------------
+| Cost           | 37       |
+| EpisodeLength  | 988      |
+| EpisodeScore   | 242      |
+| FPS            | 50.4     |
+| Loss           | 1.39     |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 245      |
+| Step           | 1000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 50       |
+| EpisodeLength  | 1099     |
+| EpisodeScore   | 276      |
+| FPS            | 48.1     |
+| Loss           | 0.0807   |
+| Max score seen | 645      |
+| NumAch         | 7        |
+| Reward         | 370      |
+| Step           | 1100     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 1184     |
+| EpisodeScore   | 231      |
+| FPS            | 48.2     |
+| Loss           | 6.34     |
+| Max score seen | 645      |
+| NumAch         | 6        |
+| Reward         | 110      |
+| Step           | 1200     |
+-----------------------------
+-----------------------------
+| Cost           | 44       |
+| EpisodeLength  | 1279     |
+| EpisodeScore   | 331      |
+| FPS            | 48.3     |
+| Loss           | 0.6      |
+| Max score seen | 645      |
+| NumAch         | 12       |
+| Reward         | 585      |
+| Step           | 1300     |
+-----------------------------
+-----------------------------
+| Cost           | 46       |
+| EpisodeLength  | 1372     |
+| EpisodeScore   | 286      |
+| FPS            | 48.3     |
+| Loss           | 0.621    |
+| Max score seen | 645      |
+| NumAch         | 7        |
+| Reward         | 295      |
+| Step           | 1400     |
+-----------------------------
+-----------------------------
+| Cost           | 40       |
+| EpisodeLength  | 1493     |
+| EpisodeScore   | 226      |
+| FPS            | 48.4     |
+| Loss           | 2.9      |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 170      |
+| Step           | 1500     |
+-----------------------------
+-----------------------------
+| Cost           | 42       |
+| EpisodeLength  | 1592     |
+| EpisodeScore   | 244      |
+| FPS            | 48.4     |
+| Loss           | 0.362    |
+| Max score seen | 645      |
+| NumAch         | 7        |
+| Reward         | 310      |
+| Step           | 1600     |
+-----------------------------
+-----------------------------
+| Cost           | 39       |
+| EpisodeLength  | 1697     |
+| EpisodeScore   | 310      |
+| FPS            | 48.3     |
+| Loss           | 3.19     |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 170      |
+| Step           | 1700     |
+-----------------------------
+-----------------------------
+| Cost           | 40       |
+| EpisodeLength  | 1791     |
+| EpisodeScore   | 266      |
+| FPS            | 48.3     |
+| Loss           | 8.04     |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 170      |
+| Step           | 1800     |
+-----------------------------
+-----------------------------
+| Cost           | 22       |
+| EpisodeLength  | 1876     |
+| EpisodeScore   | 217      |
+| FPS            | 48.4     |
+| Loss           | 7.85     |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 70       |
+| Step           | 1900     |
+-----------------------------
+-----------------------------
+| Cost           | 40       |
+| EpisodeLength  | 1964     |
+| EpisodeScore   | 331      |
+| FPS            | 48.4     |
+| Loss           | 0.968    |
+| Max score seen | 645      |
+| NumAch         | 11       |
+| Reward         | 515      |
+| Step           | 2000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 38       |
+| EpisodeLength  | 2065     |
+| EpisodeScore   | 342      |
+| FPS            | 47.3     |
+| Loss           | 1.91     |
+| Max score seen | 645      |
+| NumAch         | 10       |
+| Reward         | 490      |
+| Step           | 2100     |
+-----------------------------
+-----------------------------
+| Cost           | 26       |
+| EpisodeLength  | 2186     |
+| EpisodeScore   | 248      |
+| FPS            | 47.4     |
+| Loss           | 6.07     |
+| Max score seen | 645      |
+| NumAch         | 6        |
+| Reward         | 180      |
+| Step           | 2200     |
+-----------------------------
+-----------------------------
+| Cost           | 49       |
+| EpisodeLength  | 2283     |
+| EpisodeScore   | 309      |
+| FPS            | 47.5     |
+| Loss           | 0.648    |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 110      |
+| Step           | 2300     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 2400     |
+| EpisodeScore   | 312      |
+| FPS            | 47.5     |
+| Loss           | 2.75     |
+| Max score seen | 645      |
+| NumAch         | 4        |
+| Reward         | 145      |
+| Step           | 2400     |
+-----------------------------
+-----------------------------
+| Cost           | 33       |
+| EpisodeLength  | 2500     |
+| EpisodeScore   | 278      |
+| FPS            | 47.6     |
+| Loss           | 0.435    |
+| Max score seen | 645      |
+| NumAch         | 9        |
+| Reward         | 360      |
+| Step           | 2500     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 2584     |
+| EpisodeScore   | 251      |
+| FPS            | 47.6     |
+| Loss           | 3.3      |
+| Max score seen | 645      |
+| NumAch         | 8        |
+| Reward         | 320      |
+| Step           | 2600     |
+-----------------------------
+-----------------------------
+| Cost           | 25       |
+| EpisodeLength  | 2696     |
+| EpisodeScore   | 294      |
+| FPS            | 47.5     |
+| Loss           | 2.81     |
+| Max score seen | 645      |
+| NumAch         | 4        |
+| Reward         | 145      |
+| Step           | 2700     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 2782     |
+| EpisodeScore   | 262      |
+| FPS            | 47.6     |
+| Loss           | 4.57     |
+| Max score seen | 645      |
+| NumAch         | 8        |
+| Reward         | 410      |
+| Step           | 2800     |
+-----------------------------
+-----------------------------
+| Cost           | 27       |
+| EpisodeLength  | 2873     |
+| EpisodeScore   | 271      |
+| FPS            | 47.6     |
+| Loss           | 2.25     |
+| Max score seen | 645      |
+| NumAch         | 7        |
+| Reward         | 265      |
+| Step           | 2900     |
+-----------------------------
+-----------------------------
+| Cost           | 33       |
+| EpisodeLength  | 3000     |
+| EpisodeScore   | 316      |
+| FPS            | 47.7     |
+| Loss           | 3.29     |
+| Max score seen | 645      |
+| NumAch         | 10       |
+| Reward         | 415      |
+| Step           | 3000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 34       |
+| EpisodeLength  | 3084     |
+| EpisodeScore   | 281      |
+| FPS            | 46.7     |
+| Loss           | 2.59     |
+| Max score seen | 645      |
+| NumAch         | 10       |
+| Reward         | 490      |
+| Step           | 3100     |
+-----------------------------
+-----------------------------
+| Cost           | 27       |
+| EpisodeLength  | 3192     |
+| EpisodeScore   | 336      |
+| FPS            | 46.8     |
+| Loss           | 3.83     |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 170      |
+| Step           | 3200     |
+-----------------------------
+-----------------------------
+| Cost           | 37       |
+| EpisodeLength  | 3288     |
+| EpisodeScore   | 430      |
+| FPS            | 46.8     |
+| Loss           | 4.68     |
+| Max score seen | 645      |
+| NumAch         | 11       |
+| Reward         | 500      |
+| Step           | 3300     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 3375     |
+| EpisodeScore   | 380      |
+| FPS            | 46.9     |
+| Loss           | 9.5      |
+| Max score seen | 645      |
+| NumAch         | 9        |
+| Reward         | 290      |
+| Step           | 3400     |
+-----------------------------
+-----------------------------
+| Cost           | 36       |
+| EpisodeLength  | 3495     |
+| EpisodeScore   | 298      |
+| FPS            | 47       |
+| Loss           | 0.578    |
+| Max score seen | 645      |
+| NumAch         | 5        |
+| Reward         | 245      |
+| Step           | 3500     |
+-----------------------------
+-----------------------------
+| Cost           | 33       |
+| EpisodeLength  | 3598     |
+| EpisodeScore   | 336      |
+| FPS            | 47       |
+| Loss           | 0.445    |
+| Max score seen | 645      |
+| NumAch         | 7        |
+| Reward         | 190      |
+| Step           | 3600     |
+-----------------------------
+-----------------------------
+| Cost           | 39       |
+| EpisodeLength  | 3692     |
+| EpisodeScore   | 403      |
+| FPS            | 47       |
+| Loss           | 4.28     |
+| Max score seen | 645      |
+| NumAch         | 10       |
+| Reward         | 400      |
+| Step           | 3700     |
+-----------------------------
+-----------------------------
+| Cost           | 37       |
+| EpisodeLength  | 3780     |
+| EpisodeScore   | 514      |
+| FPS            | 47.1     |
+| Loss           | 0.882    |
+| Max score seen | 715      |
+| NumAch         | 10       |
+| Reward         | 490      |
+| Step           | 3800     |
+-----------------------------
+-----------------------------
+| Cost           | 39       |
+| EpisodeLength  | 3899     |
+| EpisodeScore   | 385      |
+| FPS            | 47.1     |
+| Loss           | 3.35     |
+| Max score seen | 715      |
+| NumAch         | 11       |
+| Reward         | 500      |
+| Step           | 3900     |
+-----------------------------
+-----------------------------
+| Cost           | 40       |
+| EpisodeLength  | 3988     |
+| EpisodeScore   | 211      |
+| FPS            | 47.1     |
+| Loss           | 4.79     |
+| Max score seen | 715      |
+| NumAch         | 11       |
+| Reward         | 500      |
+| Step           | 4000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 28       |
+| EpisodeLength  | 4083     |
+| EpisodeScore   | 318      |
+| FPS            | 46.4     |
+| Loss           | 0.909    |
+| Max score seen | 715      |
+| NumAch         | 10       |
+| Reward         | 400      |
+| Step           | 4100     |
+-----------------------------
+-----------------------------
+| Cost           | 40       |
+| EpisodeLength  | 4198     |
+| EpisodeScore   | 424      |
+| FPS            | 46.4     |
+| Loss           | 4.63     |
+| Max score seen | 735      |
+| NumAch         | 10       |
+| Reward         | 535      |
+| Step           | 4200     |
+-----------------------------
+-----------------------------
+| Cost           | 40       |
+| EpisodeLength  | 4293     |
+| EpisodeScore   | 451      |
+| FPS            | 46.5     |
+| Loss           | 4.58     |
+| Max score seen | 735      |
+| NumAch         | 9        |
+| Reward         | 435      |
+| Step           | 4300     |
+-----------------------------
+-----------------------------
+| Cost           | 34       |
+| EpisodeLength  | 4383     |
+| EpisodeScore   | 564      |
+| FPS            | 46.4     |
+| Loss           | 8.57     |
+| Max score seen | 735      |
+| NumAch         | 10       |
+| Reward         | 400      |
+| Step           | 4400     |
+-----------------------------
+-----------------------------
+| Cost           | 33       |
+| EpisodeLength  | 4499     |
+| EpisodeScore   | 568      |
+| FPS            | 46.5     |
+| Loss           | 3.25     |
+| Max score seen | 735      |
+| NumAch         | 15       |
+| Reward         | 685      |
+| Step           | 4500     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 4597     |
+| EpisodeScore   | 597      |
+| FPS            | 46.5     |
+| Loss           | 8.95     |
+| Max score seen | 735      |
+| NumAch         | 12       |
+| Reward         | 525      |
+| Step           | 4600     |
+-----------------------------
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 4691     |
+| EpisodeScore   | 641      |
+| FPS            | 46.6     |
+| Loss           | 2.53     |
+| Max score seen | 785      |
+| NumAch         | 12       |
+| Reward         | 600      |
+| Step           | 4700     |
+-----------------------------
+-----------------------------
+| Cost           | 37       |
+| EpisodeLength  | 4786     |
+| EpisodeScore   | 514      |
+| FPS            | 46.6     |
+| Loss           | 10.3     |
+| Max score seen | 785      |
+| NumAch         | 14       |
+| Reward         | 725      |
+| Step           | 4800     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 4884     |
+| EpisodeScore   | 402      |
+| FPS            | 46.7     |
+| Loss           | 0.882    |
+| Max score seen | 785      |
+| NumAch         | 7        |
+| Reward         | 385      |
+| Step           | 4900     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 4997     |
+| EpisodeScore   | 437      |
+| FPS            | 46.7     |
+| Loss           | 2.34     |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 490      |
+| Step           | 5000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 5089     |
+| EpisodeScore   | 396      |
+| FPS            | 45.9     |
+| Loss           | 2.82     |
+| Max score seen | 785      |
+| NumAch         | 12       |
+| Reward         | 525      |
+| Step           | 5100     |
+-----------------------------
+-----------------------------
+| Cost           | 29       |
+| EpisodeLength  | 5193     |
+| EpisodeScore   | 474      |
+| FPS            | 46       |
+| Loss           | 1.98     |
+| Max score seen | 785      |
+| NumAch         | 9        |
+| Reward         | 540      |
+| Step           | 5200     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 5298     |
+| EpisodeScore   | 385      |
+| FPS            | 46       |
+| Loss           | 2.1      |
+| Max score seen | 785      |
+| NumAch         | 4        |
+| Reward         | 175      |
+| Step           | 5300     |
+-----------------------------
+-----------------------------
+| Cost           | 27       |
+| EpisodeLength  | 5382     |
+| EpisodeScore   | 451      |
+| FPS            | 46.1     |
+| Loss           | 5.29     |
+| Max score seen | 785      |
+| NumAch         | 9        |
+| Reward         | 390      |
+| Step           | 5400     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 5468     |
+| EpisodeScore   | 476      |
+| FPS            | 46.1     |
+| Loss           | 1.5      |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 380      |
+| Step           | 5500     |
+-----------------------------
+-----------------------------
+| Cost           | 35       |
+| EpisodeLength  | 5594     |
+| EpisodeScore   | 462      |
+| FPS            | 46.2     |
+| Loss           | 2.84     |
+| Max score seen | 785      |
+| NumAch         | 12       |
+| Reward         | 615      |
+| Step           | 5600     |
+-----------------------------
+-----------------------------
+| Cost           | 33       |
+| EpisodeLength  | 5694     |
+| EpisodeScore   | 554      |
+| FPS            | 46.2     |
+| Loss           | 0.663    |
+| Max score seen | 785      |
+| NumAch         | 13       |
+| Reward         | 625      |
+| Step           | 5700     |
+-----------------------------
+-----------------------------
+| Cost           | 29       |
+| EpisodeLength  | 5784     |
+| EpisodeScore   | 473      |
+| FPS            | 46.3     |
+| Loss           | 1.48     |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 400      |
+| Step           | 5800     |
+-----------------------------
+-----------------------------
+| Cost           | 37       |
+| EpisodeLength  | 5895     |
+| EpisodeScore   | 481      |
+| FPS            | 46.3     |
+| Loss           | 1.25     |
+| Max score seen | 785      |
+| NumAch         | 6        |
+| Reward         | 285      |
+| Step           | 5900     |
+-----------------------------
+-----------------------------
+| Cost           | 33       |
+| EpisodeLength  | 6000     |
+| EpisodeScore   | 404      |
+| FPS            | 46.4     |
+| Loss           | 7.66     |
+| Max score seen | 785      |
+| NumAch         | 11       |
+| Reward         | 590      |
+| Step           | 6000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 34       |
+| EpisodeLength  | 6094     |
+| EpisodeScore   | 383      |
+| FPS            | 45.8     |
+| Loss           | 6.75     |
+| Max score seen | 785      |
+| NumAch         | 12       |
+| Reward         | 705      |
+| Step           | 6100     |
+-----------------------------
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 6184     |
+| EpisodeScore   | 534      |
+| FPS            | 45.8     |
+| Loss           | 0.836    |
+| Max score seen | 785      |
+| NumAch         | 12       |
+| Reward         | 705      |
+| Step           | 6200     |
+-----------------------------
+-----------------------------
+| Cost           | 39       |
+| EpisodeLength  | 6297     |
+| EpisodeScore   | 571      |
+| FPS            | 45.9     |
+| Loss           | 0.413    |
+| Max score seen | 785      |
+| NumAch         | 9        |
+| Reward         | 300      |
+| Step           | 6300     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 6390     |
+| EpisodeScore   | 471      |
+| FPS            | 45.8     |
+| Loss           | 1.39     |
+| Max score seen | 785      |
+| NumAch         | 13       |
+| Reward         | 610      |
+| Step           | 6400     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 6499     |
+| EpisodeScore   | 503      |
+| FPS            | 45.9     |
+| Loss           | 4.95     |
+| Max score seen | 785      |
+| NumAch         | 9        |
+| Reward         | 390      |
+| Step           | 6500     |
+-----------------------------
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 6599     |
+| EpisodeScore   | 578      |
+| FPS            | 45.9     |
+| Loss           | 5.25     |
+| Max score seen | 785      |
+| NumAch         | 12       |
+| Reward         | 600      |
+| Step           | 6600     |
+-----------------------------
+-----------------------------
+| Cost           | 28       |
+| EpisodeLength  | 6691     |
+| EpisodeScore   | 527      |
+| FPS            | 45.9     |
+| Loss           | 0.926    |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 400      |
+| Step           | 6700     |
+-----------------------------
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 6800     |
+| EpisodeScore   | 469      |
+| FPS            | 46       |
+| Loss           | 0.624    |
+| Max score seen | 785      |
+| NumAch         | 7        |
+| Reward         | 310      |
+| Step           | 6800     |
+-----------------------------
+-----------------------------
+| Cost           | 38       |
+| EpisodeLength  | 6900     |
+| EpisodeScore   | 520      |
+| FPS            | 46       |
+| Loss           | 1.75     |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 380      |
+| Step           | 6900     |
+-----------------------------
+-----------------------------
+| Cost           | 36       |
+| EpisodeLength  | 6992     |
+| EpisodeScore   | 444      |
+| FPS            | 46.1     |
+| Loss           | 0.767    |
+| Max score seen | 785      |
+| NumAch         | 5        |
+| Reward         | 275      |
+| Step           | 7000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 7094     |
+| EpisodeScore   | 479      |
+| FPS            | 45.5     |
+| Loss           | 1.32     |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 380      |
+| Step           | 7100     |
+-----------------------------
+-----------------------------
+| Cost           | 35       |
+| EpisodeLength  | 7174     |
+| EpisodeScore   | 408      |
+| FPS            | 45.6     |
+| Loss           | 5.26     |
+| Max score seen | 785      |
+| NumAch         | 6        |
+| Reward         | 300      |
+| Step           | 7200     |
+-----------------------------
+-----------------------------
+| Cost           | 26       |
+| EpisodeLength  | 7299     |
+| EpisodeScore   | 414      |
+| FPS            | 45.6     |
+| Loss           | 2.06     |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 380      |
+| Step           | 7300     |
+-----------------------------
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 7389     |
+| EpisodeScore   | 462      |
+| FPS            | 45.6     |
+| Loss           | 1.51     |
+| Max score seen | 785      |
+| NumAch         | 5        |
+| Reward         | 185      |
+| Step           | 7400     |
+-----------------------------
+-----------------------------
+| Cost           | 29       |
+| EpisodeLength  | 7499     |
+| EpisodeScore   | 502      |
+| FPS            | 45.7     |
+| Loss           | 0.569    |
+| Max score seen | 785      |
+| NumAch         | 6        |
+| Reward         | 300      |
+| Step           | 7500     |
+-----------------------------
+-----------------------------
+| Cost           | 28       |
+| EpisodeLength  | 7600     |
+| EpisodeScore   | 460      |
+| FPS            | 45.7     |
+| Loss           | 8.73     |
+| Max score seen | 785      |
+| NumAch         | 9        |
+| Reward         | 480      |
+| Step           | 7600     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 7692     |
+| EpisodeScore   | 532      |
+| FPS            | 45.8     |
+| Loss           | 0.374    |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 580      |
+| Step           | 7700     |
+-----------------------------
+-----------------------------
+| Cost           | 39       |
+| EpisodeLength  | 7777     |
+| EpisodeScore   | 438      |
+| FPS            | 45.8     |
+| Loss           | 4.41     |
+| Max score seen | 785      |
+| NumAch         | 6        |
+| Reward         | 300      |
+| Step           | 7800     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 7863     |
+| EpisodeScore   | 605      |
+| FPS            | 45.9     |
+| Loss           | 13.4     |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 580      |
+| Step           | 7900     |
+-----------------------------
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 7998     |
+| EpisodeScore   | 540      |
+| FPS            | 45.8     |
+| Loss           | 0.396    |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 380      |
+| Step           | 8000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 35       |
+| EpisodeLength  | 8091     |
+| EpisodeScore   | 456      |
+| FPS            | 45.4     |
+| Loss           | 5.59     |
+| Max score seen | 785      |
+| NumAch         | 14       |
+| Reward         | 725      |
+| Step           | 8100     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 8200     |
+| EpisodeScore   | 547      |
+| FPS            | 45.4     |
+| Loss           | 0.33     |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 380      |
+| Step           | 8200     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 8290     |
+| EpisodeScore   | 470      |
+| FPS            | 45.4     |
+| Loss           | 0.951    |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 490      |
+| Step           | 8300     |
+-----------------------------
+-----------------------------
+| Cost           | 29       |
+| EpisodeLength  | 8395     |
+| EpisodeScore   | 500      |
+| FPS            | 45.5     |
+| Loss           | 1.03     |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 490      |
+| Step           | 8400     |
+-----------------------------
+-----------------------------
+| Cost           | 26       |
+| EpisodeLength  | 8498     |
+| EpisodeScore   | 526      |
+| FPS            | 45.5     |
+| Loss           | 0.417    |
+| Max score seen | 785      |
+| NumAch         | 5        |
+| Reward         | 215      |
+| Step           | 8500     |
+-----------------------------
+-----------------------------
+| Cost           | 28       |
+| EpisodeLength  | 8592     |
+| EpisodeScore   | 432      |
+| FPS            | 45.5     |
+| Loss           | 0.599    |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 365      |
+| Step           | 8600     |
+-----------------------------
+-----------------------------
+| Cost           | 29       |
+| EpisodeLength  | 8698     |
+| EpisodeScore   | 547      |
+| FPS            | 45.6     |
+| Loss           | 1.09     |
+| Max score seen | 785      |
+| NumAch         | 9        |
+| Reward         | 480      |
+| Step           | 8700     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 8800     |
+| EpisodeScore   | 594      |
+| FPS            | 45.6     |
+| Loss           | 0.248    |
+| Max score seen | 785      |
+| NumAch         | 7        |
+| Reward         | 355      |
+| Step           | 8800     |
+-----------------------------
+-----------------------------
+| Cost           | 34       |
+| EpisodeLength  | 8895     |
+| EpisodeScore   | 564      |
+| FPS            | 45.6     |
+| Loss           | 0.465    |
+| Max score seen | 785      |
+| NumAch         | 11       |
+| Reward         | 590      |
+| Step           | 8900     |
+-----------------------------
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 8986     |
+| EpisodeScore   | 465      |
+| FPS            | 45.7     |
+| Loss           | 2.8      |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 490      |
+| Step           | 9000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 9092     |
+| EpisodeScore   | 466      |
+| FPS            | 45.3     |
+| Loss           | 1.29     |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 365      |
+| Step           | 9100     |
+-----------------------------
+-----------------------------
+| Cost           | 35       |
+| EpisodeLength  | 9195     |
+| EpisodeScore   | 582      |
+| FPS            | 45.3     |
+| Loss           | 0.227    |
+| Max score seen | 785      |
+| NumAch         | 12       |
+| Reward         | 705      |
+| Step           | 9200     |
+-----------------------------
+-----------------------------
+| Cost           | 34       |
+| EpisodeLength  | 9280     |
+| EpisodeScore   | 496      |
+| FPS            | 45.3     |
+| Loss           | 0.793    |
+| Max score seen | 785      |
+| NumAch         | 11       |
+| Reward         | 590      |
+| Step           | 9300     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 9398     |
+| EpisodeScore   | 470      |
+| FPS            | 45.4     |
+| Loss           | 0.562    |
+| Max score seen | 785      |
+| NumAch         | 9        |
+| Reward         | 480      |
+| Step           | 9400     |
+-----------------------------
+-----------------------------
+| Cost           | 29       |
+| EpisodeLength  | 9495     |
+| EpisodeScore   | 483      |
+| FPS            | 45.4     |
+| Loss           | 0.489    |
+| Max score seen | 785      |
+| NumAch         | 11       |
+| Reward         | 590      |
+| Step           | 9500     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 9596     |
+| EpisodeScore   | 438      |
+| FPS            | 45.4     |
+| Loss           | 2.28     |
+| Max score seen | 785      |
+| NumAch         | 8        |
+| Reward         | 350      |
+| Step           | 9600     |
+-----------------------------
+-----------------------------
+| Cost           | 40       |
+| EpisodeLength  | 9692     |
+| EpisodeScore   | 507      |
+| FPS            | 45.5     |
+| Loss           | 0.243    |
+| Max score seen | 785      |
+| NumAch         | 7        |
+| Reward         | 355      |
+| Step           | 9700     |
+-----------------------------
+-----------------------------
+| Cost           | 31       |
+| EpisodeLength  | 9800     |
+| EpisodeScore   | 522      |
+| FPS            | 45.5     |
+| Loss           | 1.43     |
+| Max score seen | 785      |
+| NumAch         | 12       |
+| Reward         | 615      |
+| Step           | 9800     |
+-----------------------------
+-----------------------------
+| Cost           | 32       |
+| EpisodeLength  | 9898     |
+| EpisodeScore   | 472      |
+| FPS            | 45.5     |
+| Loss           | 0.23     |
+| Max score seen | 785      |
+| NumAch         | 13       |
+| Reward         | 715      |
+| Step           | 9900     |
+-----------------------------
+-----------------------------
+| Cost           | 30       |
+| EpisodeLength  | 9983     |
+| EpisodeScore   | 534      |
+| FPS            | 45.5     |
+| Loss           | 0.919    |
+| Max score seen | 785      |
+| NumAch         | 10       |
+| Reward         | 490      |
+| Step           | 10000    |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 100      |
+| EpisodeScore   | 28.3     |
+| FPS            | 85.1     |
+| Loss           | 4.92     |
+| Max score seen | 71       |
+| NumAch         | 0        |
+| Reward         | 0        |
+| Step           | 100      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 200      |
+| EpisodeScore   | 40.7     |
+| FPS            | 88.8     |
+| Loss           | 1.97     |
+| Max score seen | 82       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 200      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 300      |
+| EpisodeScore   | 42.9     |
+| FPS            | 90.7     |
+| Loss           | 3.97     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 300      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 400      |
+| EpisodeScore   | 46.4     |
+| FPS            | 91.7     |
+| Loss           | 7.62     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 400      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 500      |
+| EpisodeScore   | 46.5     |
+| FPS            | 91.9     |
+| Loss           | 6.51     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 500      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 600      |
+| EpisodeScore   | 38.1     |
+| FPS            | 92.3     |
+| Loss           | 10.9     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 0        |
+| Step           | 600      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 700      |
+| EpisodeScore   | 38.9     |
+| FPS            | 92.6     |
+| Loss           | 15       |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 0        |
+| Step           | 700      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 800      |
+| EpisodeScore   | 48.6     |
+| FPS            | 92.5     |
+| Loss           | 25.8     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 800      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 900      |
+| EpisodeScore   | 42.6     |
+| FPS            | 92.7     |
+| Loss           | 11.8     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 900      |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1000     |
+| EpisodeScore   | 67.2     |
+| FPS            | 92.9     |
+| Loss           | 4.35     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1100     |
+| EpisodeScore   | 85.3     |
+| FPS            | 87.4     |
+| Loss           | 10.5     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1100     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1200     |
+| EpisodeScore   | 81.2     |
+| FPS            | 88       |
+| Loss           | 7.89     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1200     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1300     |
+| EpisodeScore   | 86.2     |
+| FPS            | 88.5     |
+| Loss           | 2.78     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1300     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1400     |
+| EpisodeScore   | 87.9     |
+| FPS            | 88.7     |
+| Loss           | 3.83     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1400     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1500     |
+| EpisodeScore   | 82       |
+| FPS            | 89       |
+| Loss           | 1.06     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1500     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1600     |
+| EpisodeScore   | 84.5     |
+| FPS            | 89.4     |
+| Loss           | 2        |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1600     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1700     |
+| EpisodeScore   | 88.3     |
+| FPS            | 89.7     |
+| Loss           | 2.92     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1700     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1800     |
+| EpisodeScore   | 90       |
+| FPS            | 89.9     |
+| Loss           | 1.08     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1800     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 1900     |
+| EpisodeScore   | 90.9     |
+| FPS            | 90.2     |
+| Loss           | 1.92     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 1900     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2000     |
+| EpisodeScore   | 91       |
+| FPS            | 90.1     |
+| Loss           | 0.0461   |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2100     |
+| EpisodeScore   | 91       |
+| FPS            | 87       |
+| Loss           | 0.941    |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2100     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2200     |
+| EpisodeScore   | 91       |
+| FPS            | 87.3     |
+| Loss           | 0.925    |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2200     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2300     |
+| EpisodeScore   | 91       |
+| FPS            | 87.6     |
+| Loss           | 2.85     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2300     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2400     |
+| EpisodeScore   | 90.9     |
+| FPS            | 87.8     |
+| Loss           | 0.0299   |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2400     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2500     |
+| EpisodeScore   | 90.9     |
+| FPS            | 88.1     |
+| Loss           | 2.68     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2500     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2600     |
+| EpisodeScore   | 90.9     |
+| FPS            | 88.3     |
+| Loss           | 2.56     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2600     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2700     |
+| EpisodeScore   | 91       |
+| FPS            | 88.5     |
+| Loss           | 1.8      |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2700     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2800     |
+| EpisodeScore   | 91       |
+| FPS            | 88.5     |
+| Loss           | 1.57     |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2800     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 2900     |
+| EpisodeScore   | 91       |
+| FPS            | 88.7     |
+| Loss           | 0.819    |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 2900     |
+-----------------------------
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 3000     |
+| EpisodeScore   | 91       |
+| FPS            | 88.8     |
+| Loss           | 1.7      |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 3000     |
+-----------------------------
+empty cache
+-----------------------------
+| Cost           | 0        |
+| EpisodeLength  | 3100     |
+| EpisodeScore   | 91       |
+| FPS            | 86.1     |
+| Loss           | 0.0285   |
+| Max score seen | 91       |
+| NumAch         | 0        |
+| Reward         | 10       |
+| Step           | 3100     |
+-----------------------------
