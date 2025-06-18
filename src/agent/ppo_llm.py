@@ -7,6 +7,8 @@ import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer, AutoModelForCausalLM
 from src.agent.base import BaseAgent
 from src.env.machiavelli.utils import clean
+from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
 
 PPOLLMTransition = namedtuple(
     "LLMTransition",
@@ -15,13 +17,16 @@ PPOLLMTransition = namedtuple(
         "action",
         "log_prob",
         "value",
+        "cost_value",
         "reward",
         "valid_actions",
         "done",
         "next_state",
         "next_acts",
         "advantage",
+        "cost_advantage",
         "returns",
+        "cost_returns",
         "cost",
     ),
 )
@@ -41,8 +46,7 @@ TrajectoryStep = namedtuple(
 
 
 def format_state(state):
-    return state.state
-    # return f"Observations: {state.obs}\nDescription: {state.description}\nInventory: {state.inventory}"
+    return f"\nDescription: {state.description}\nObservations: {state.obs}\nInventory: {state.inventory}"
 
 
 def masked_mean(
@@ -119,9 +123,10 @@ class ActorNetwork(nn.Module):
         """
         batch_size = len(actions)
         states = [format_state(state)] * batch_size
-        state_tokens = self.tokenizer(states, return_tensors="pt", padding=True)
+        state_tokens = self.tokenizer(states, return_tensors="pt", padding=True, truncation=True)
         action_tokens = self.tokenizer(
-            actions, return_tensors="pt", padding="longest", padding_side="right"
+            actions, return_tensors="pt", padding="longest", padding_side="right",
+            truncation=True
         )
 
         state_tokens = {k: v.to(device) for k, v in state_tokens.items()}
@@ -204,6 +209,11 @@ class ActorNetwork(nn.Module):
         logits = self.forward(state, actions, device)
         return torch.distributions.Categorical(logits=logits)
 
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
 
 class CriticNetwork(nn.Module):
     """
@@ -216,18 +226,21 @@ class CriticNetwork(nn.Module):
         self.tokenizer = tokenizer
         # Language model for embeddings
         self.embedding = embedding
-        embedding_dim = self.embedding.get_input_embeddings().embedding_dim
+        emb_dim = self.embedding.get_input_embeddings().embedding_dim
 
         # Value estimation layers
         self.hidden = nn.Sequential(
-            nn.Linear(embedding_dim, hidden_dim),
-            nn.GELU(),
-            nn.LayerNorm(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.GELU(),
+            layer_init(nn.Linear(emb_dim, emb_dim)),
+            nn.Tanh(),
+            layer_init(nn.Linear(emb_dim, hidden_dim)),
+            nn.Tanh(),
+            layer_init(nn.Linear(hidden_dim, hidden_dim)),
         )
-        self.value_estimator = nn.Linear(hidden_dim, 1)
+        self.value_estimator = layer_init(nn.Linear(hidden_dim, 1), std=1.0)
+        # Store the tokenizer and hidden dimension
         self.hidden_dim = hidden_dim
+        self.reward_mean = 1e-8  # Small value to avoid division by zero
+        self.reward_std = 1.0  # Standard deviation for reward normalization
 
     def _set_device(self, device):
         """
@@ -290,7 +303,6 @@ class PPOLLMAgent(BaseAgent):
         )
         assert device.type == "cuda", "PPO_LLM requires a GPU for training."
         self.device = device
-        self.loss = kwargs.get("loss", "a2c")  # 'a2c' or 'ppo'
 
         self.tokenizer = (
             args.tokenizer
@@ -329,8 +341,10 @@ class PPOLLMAgent(BaseAgent):
         self.trajectories = []
         self.episode_buffer = [[] for _ in range(args.num_envs)]
         self.completed_episodes = []
-        self.max_segment_length = kwargs.get("max_segment_length", 8)
+        self.max_segment_length = kwargs.get("max_segment_length", 128)
         self.last_actions = []
+        self.num_updates = kwargs.get("num_updates", 4)  # Number of updates per batch
+        self.batch_size = kwargs.get("batch_size", 8)
 
         self.lag = kwargs.get(
             "lag", False
@@ -352,6 +366,7 @@ class PPOLLMAgent(BaseAgent):
         )  # Clipping value for value loss
 
         self.vf_coef = kwargs.get("vf_coef", 0.25)
+        self.max_reward = kwargs.get("max_reward", 100.0)
 
     def _tokenize(self, text):
         """
@@ -436,6 +451,7 @@ class PPOLLMAgent(BaseAgent):
             action=action_info["action"] if action_info else None,
             log_prob=action_info["log_prob"] if action_info else None,
             value=action_info["value"] if action_info else None,
+            cost_value=action_info.get("cost_value") if action_info else None,
             reward=transition.reward,
             valid_actions=getattr(transition, "valid_acts", None),
             done=transition.done,
@@ -443,7 +459,9 @@ class PPOLLMAgent(BaseAgent):
             next_acts=getattr(transition, "next_acts", None),
             cost=getattr(transition, "cost", 0),
             advantage=None,
+            cost_advantage=None,
             returns=None,
+            cost_returns=None,
         )
         self.episode_buffer[env_idx].append(ppo_llm_transition)
         if (
@@ -463,6 +481,7 @@ class PPOLLMAgent(BaseAgent):
             )
         return dist.log_prob(a), dist.entropy()
 
+    @torch.no_grad()
     def _compute_advantages(self, episode, gamma=None, lambda_gae=None):
         gamma = gamma if gamma is not None else self.gamma
         lambda_gae = lambda_gae if lambda_gae is not None else self.lambda_gae
@@ -472,19 +491,22 @@ class PPOLLMAgent(BaseAgent):
         dones = [t.done for t in episode]
         costs = [t.cost for t in episode]
 
+        # normalize rewards by max_reward
+        rewards = np.array(rewards, dtype=np.float32) / self.max_reward
+
         # 🔁 Bootstrap if the episode was truncated
         if dones[-1]:
             next_value = 0
         else:
-            with torch.no_grad():
-                final_state = episode[-1].state
-                next_value = self.critic(final_state, self.device).item()
+            final_state = episode[-1].state
+            next_value = self.critic(final_state, self.device).item()
 
         advantages = np.zeros(len(rewards), dtype=np.float32)
         next_advantage = 0
 
         for t in reversed(range(len(rewards))):
             not_done = 1.0 - float(dones[t])
+            
             delta = rewards[t] + gamma * next_value * not_done - values[t]
             advantages[t] = delta + gamma * lambda_gae * next_advantage * not_done
             if self.lag:
@@ -492,147 +514,105 @@ class PPOLLMAgent(BaseAgent):
                 advantages[t] -= costs[t]
             next_value = values[t]
             next_advantage = advantages[t]
-
+       
         returns = np.array(advantages) + np.array(values)
-
-        advantages = masked_whiten(
-            torch.tensor(advantages, device=self.device, dtype=torch.float32),
-            torch.tensor(
-                [1.0] * len(advantages), device=self.device, dtype=torch.float32
-            ),
-        )
-
         for i in range(len(episode)):
             episode[i] = episode[i]._replace(
                 advantage=advantages[i], returns=returns[i]
             )
         # return advantages, returns
 
-    def update(self):
-        """
-        Perform PPO update using completed episodes.
-        Returns:
-            float: Total loss over all episodes.
-        """
-        if not self.completed_episodes:
-            return 0.0
-        total_loss = 0.0
+    def _collect_transitions(self):
+        """Flattens self.completed_episodes into a list[Transition] and computes advantages if needed."""
+        transitions = []
         for episode in self.completed_episodes:
-            # 4 updates
-            num_updates = 10
-            states = [t.state for t in episode]
-            actions = torch.tensor(
-                [t.action for t in episode], device=self.device, dtype=torch.long
-            )
-            valid_actions = [t.valid_actions for t in episode]
-            old_log_probs = torch.tensor(
-                [t.log_prob for t in episode],
-                device=self.device,
-                dtype=torch.float32,
-            )
-            advantages = torch.tensor(
-                [t.advantage for t in episode],
-                device=self.device,
-                dtype=torch.float32,
-            )
-            returns = torch.tensor(
-                [t.returns for t in episode],
-                device=self.device,
-                dtype=torch.float32,
-            )
-            costs = torch.tensor(
-                [t.cost for t in episode], device=self.device, dtype=torch.float32
-            )
-            episode_cost = costs.sum().item()
+            if len(episode) == 0:
+                continue
             if episode[0].advantage is None:
                 self._compute_advantages(episode)
-            for update in range(num_updates):
-                if len(episode) == 0:
-                    continue
+            transitions.extend(episode)
+        return transitions
+
+    def update(self):
+        """
+        Perform updates using shuffled minibatches drawn from the entire set of transitions
+        gathered in self.completed_episodes.
+        """
+        # 1. Gather transitions and build a DataLoader -------------------------------------------------
+        transitions = self._collect_transitions()
+        if len(transitions) == 0:
+            return 0.0  # nothing to learn from
+
+        # Build DataLoader
+        loader = DataLoader(
+            RolloutDataset(transitions),
+            batch_size=self.batch_size,
+            shuffle=True,
+            drop_last=False,
+            collate_fn=lambda x: x,  # No special collate function needed
+        )
+
+        total_loss = 0.0
+        for update in range(self.num_updates):
+            for batch in tqdm(loader):
+                # Unpack the batch -------------------------------------------------------------------
+                states = [t.state for t in batch]
+                actions = torch.tensor([t.action for t in batch], device=self.device, dtype=torch.long)
+                valid_actions = [t.valid_actions for t in batch]
+                old_log_probs = torch.tensor([t.log_prob for t in batch], device=self.device, dtype=torch.float32)
+                old_values = torch.tensor([t.value for t in batch], device=self.device, dtype=torch.float32)
+                advantages = torch.tensor([t.advantage for t in batch], device=self.device, dtype=torch.float32)
+                returns = torch.tensor([t.returns for t in batch], device=self.device, dtype=torch.float32)
+                costs = torch.tensor([t.cost for t in batch], device=self.device, dtype=torch.float32)
+
+                # 2. Forward pass --------------------------------------------------------------------
                 action_logprob_entropies = [
-                    # logprob, entropy
                     self.compute_actions(s, va, a)
                     for s, va, a in zip(states, valid_actions, actions)
                 ]
-                logprobs = torch.stack(
-                    [logprob for logprob, _ in action_logprob_entropies]
-                )
-                entropies = torch.stack(
-                    [entropy for _, entropy in action_logprob_entropies]
-                )
-
+                logprobs = torch.stack([lp for lp, _ in action_logprob_entropies])
+                entropies = torch.stack([ent for _, ent in action_logprob_entropies])
                 values = torch.stack([self.critic(s, self.device) for s in states])
-                policy_loss = None
 
-                if self.loss == "a2c":
-                    # A2C loss
-                    policy_loss = -(logprobs * advantages).mean()
-                elif self.loss == "ppo":
-                    # PPO loss
-                    # Calculate the surrogate losses
-                    ratio = torch.exp(logprobs - old_log_probs)
-                    surrogate1 = ratio * advantages
-                    surrogate2 = (
-                        torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
-                        * advantages
-                    )
-                    policy_loss = -torch.min(surrogate1, surrogate2).mean()
+                # 3. Normalize advantages ------------------------------------------------------------
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-                # PPO-style value loss clipping
-                vpred_clipped = torch.clamp(
-                    values,
-                    returns - self.clip_valuef,
-                    returns + self.clip_valuef,
-                )
+                ratio = torch.exp(logprobs - old_log_probs)
+                surrogate1 = ratio * advantages
+                surrogate2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * advantages
+                policy_loss = -torch.min(surrogate1, surrogate2).mean()
+
+                # 5. Value loss ----------------------------------------------------------------------
+                vpred_clipped = torch.clamp(values, old_values - self.clip_valuef, old_values + self.clip_valuef)
                 vf_losses1 = (values - returns) ** 2
                 vf_losses2 = (vpred_clipped - returns) ** 2
                 value_loss = torch.max(vf_losses1, vf_losses2).mean()
+
+                # 6. Entropy bonus ------------------------------------------------------------------
                 entropy_loss = self.entropy_coef * entropies.mean()
+
+                # 7. Total loss ----------------------------------------------------------------------
                 loss = policy_loss + self.vf_coef * value_loss - entropy_loss
-                print(
-                    f"Update {update + 1}/{num_updates}, "
-                    f"Policy Loss: {policy_loss.item():.4f}, "
-                    f"Value Loss: {value_loss.item():.4f}, "
-                    f"Entropy Loss: {entropy_loss.item():.4f}, "
-                    f"Total Loss: {loss.item():.4f}, "
-                    f"Episode Cost: {episode_cost:.2f}"
-                )
+
+                # 8. Back‑prop & optimisation --------------------------------------------------------
                 self.optimizer.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm_(
-                    list(self.actor.parameters()) + list(self.critic.parameters()),
-                    max_norm=10.0,
-                )
-                # print grad norms
-                actor_grad_norm_mean = 0.0
-                for name, param in self.actor.named_parameters():
-                    if param.grad is not None:
-                        actor_grad_norm_mean += param.grad.norm().item()
-                actor_grad_norm_mean /= len(list(self.actor.parameters()))
-                critic_grad_norm_mean = 0.0
-                for name, param in self.critic.named_parameters():
-                    if param.grad is not None:
-                        critic_grad_norm_mean += param.grad.norm().item()
-                critic_grad_norm_mean /= len(list(self.critic.parameters()))
-                print(
-                    f"Actor grad norm: {actor_grad_norm_mean:.4f}, Critic grad norm: {critic_grad_norm_mean:.4f}"
-                )
+                nn.utils.clip_grad_norm_(list(self.actor.parameters()) + list(self.critic.parameters()), max_norm=10.0)
                 self.optimizer.step()
+
                 total_loss += loss.item()
 
-                if self.lag:
-                    with torch.no_grad():
-                        self.lagrange_lambda += self.lagrange_lr * (
-                            episode_cost - self.cost_limit
-                        )
-                        self.lagrange_lambda.clamp_(
-                            self.lagrange_min, self.lagrange_max
-                        )
+            # Optional: logging per update
+            print(
+                f"[Update {update+1}/{self.num_updates}] Loss: {loss.item():.4f} | "
+                f"Policy {policy_loss.item():.4f} | Value {value_loss.item():.4f} | "
+                f"Entropy {entropy_loss.item():.4f} | Mean batch cost {costs.mean().item():.2f}"
+            )
 
         self.completed_episodes = []
         # Clear the episode buffer
         self.episode_buffer = [[] for _ in range(len(self.episode_buffer))]
-        return total_loss
+        return total_loss / (self.num_updates * len(loader))
 
     def _choose_action(self, state, actions=None, logprob_flag=False, return_idx=False):
         """
@@ -659,3 +639,14 @@ class PPOLLMAgent(BaseAgent):
                 (action, logprob, action_idx) if logprob_flag else (action, action_idx)
             )
         return (action, logprob) if logprob_flag else action
+
+class RolloutDataset(Dataset):
+    """Wraps a list[Transition] so we can use PyTorch's DataLoader for minibatching."""
+    def __init__(self, transitions):
+        self.transitions = transitions
+
+    def __len__(self):
+        return len(self.transitions)
+
+    def __getitem__(self, idx):
+        return self.transitions[idx]
