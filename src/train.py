@@ -434,7 +434,7 @@ def main():
     if args.agent_type == "DRRN":
         agent = DRRNAgent(args)
     elif args.agent_type == "PPO_LLM":
-        agent = PPOLLMAgent(args=args, max_rewards= envs[0].max_reward)
+        agent = PPOLLMAgent(args=args, max_reward=envs[0].max_reward)
     elif args.agent_type == "PPO_LLM_LAG":
         agent = PPOLagLLMAgent(args=args)
     else:
