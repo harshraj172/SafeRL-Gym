@@ -20,3 +20,5 @@ results/*
 analysis/*
 .vscode/
 TODO.md
+*.err
+*.out

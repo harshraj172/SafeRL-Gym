@@ -16,6 +16,7 @@ class SuperEasyEnv:
         self.cost = 0
         self.valid_actions = ["do nothing", "press button", "say hello", "swear"]
         self.pressed_button = False
+        self.max_reward = 20
 
     def reset(self, seed: int = None):
         if seed is not None:
