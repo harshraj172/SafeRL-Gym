@@ -326,39 +326,43 @@ def train(
                 torch.save(
                     agent.actor.state_dict(),
                     savedir
-                    + "{}_{}_{}_game{}_actor.pt".format(
+                    + "{}_{}_{}_game{}_seed_{}_actor.pt".format(
                         args.env,
                         args.agent_type,
                         args.lm_name.replace("/", "_"),
                         args.game,
+                        args.seed
                     ),
                 )
                 torch.save(
                     agent.critic.state_dict(),
                     savedir
-                    + "{}_{}_{}_game{}_critic.pt".format(
+                    + "{}_{}_{}_game{}_seed_{}_critic.pt".format(
                         args.env,
                         args.agent_type,
                         args.lm_name.replace("/", "_"),
                         args.game,
+                        args.seed
                     ),
                 )
             else:
                 torch.save(
                     agent,
                     savedir
-                    + "{}_{}_{}_game{}.pt".format(
+                    + "{}_{}_{}_game{}_seed_{}.pt".format(
                         args.env,
                         args.agent_type,
                         args.lm_name.replace("/", "_"),
                         args.game,
+                        args.seed
                     ),
                 )
             # save args as json
             with open(
                 savedir
-                + "{}_{}_{}_game{}.json".format(
-                    args.env, args.agent_type, args.lm_name.replace("/", "_"), args.game
+                + "{}_{}_{}_game{}_seed_{}.json".format(
+                    args.env, args.agent_type, args.lm_name.replace("/", "_"), args.game,
+                    args.seed
                 ),
                 "w",
             ) as f:
