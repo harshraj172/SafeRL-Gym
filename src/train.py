@@ -436,7 +436,12 @@ def main():
     elif args.agent_type == "PPO_LLM":
         agent = PPOLLMAgent(args=args, max_reward=envs[0].max_reward)
     elif args.agent_type == "PPO_LLM_LAG":
-        agent = PPOLagLLMAgent(args=args)
+        agent = PPOLagLLMAgent(
+            args=args, 
+            max_reward=envs[0].max_reward,
+            cost_limit=envs[0].two_sigma_min_cost,
+            max_cost=envs[0].two_sigma_max_cost
+        )
     else:
         # Random Agent
         agent = BaseAgent(args)

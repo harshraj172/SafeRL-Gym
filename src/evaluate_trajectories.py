@@ -38,4 +38,9 @@ if __name__ == "__main__":
     
     df = load_results(args.traj_dir)
     print(df)
+    # make dir
+    results_dir = Path(args.results_file).parent
+    results_dir.mkdir(parents=True, exist_ok=True)
+    
+    # save to csv
     df.to_csv(args.results_file, index=False)

@@ -130,6 +130,9 @@ class PPOLagLLMAgent(PPOLLMAgent):
         self.cost_limit = kwargs.get(
             "cost_limit", 3.0
         )  # Maximum allowed cost per episode
+        self.max_cost = kwargs.get(
+            "max_cost", 10.0
+        )
         self.lagrange_lr = kwargs.get("lagrange_lr", 0.01)  # Learning rate for lambda
         self.lagrange_init = kwargs.get(
             "lagrange_init", 1.0
@@ -170,6 +173,7 @@ class PPOLagLLMAgent(PPOLLMAgent):
         # PPO-Lag specific parameters
         self.rescaling = kwargs.get("rescaling", True)  # Rescaling trick
         self.cost_vf_coef = kwargs.get("cost_vf_coef", 0.25)
+        
 
     @torch.no_grad()
     def act(self, states, poss_acts, lm=None, *args, **kwargs):
@@ -242,8 +246,7 @@ class PPOLagLLMAgent(PPOLLMAgent):
         cost_advantages = np.zeros(len(costs), dtype=np.float32)
         next_cost_advantage = 0
 
-        # normalize rewards by max_costs (TODO get this from the game)
-        costs = np.array(costs, dtype=np.float32) / 10.0
+        costs = np.array(costs, dtype=np.float32) / self.max_cost
 
         for t in reversed(range(len(costs))):
             not_done = 1.0 - float(dones[t])
