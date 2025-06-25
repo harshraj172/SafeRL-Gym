@@ -30,10 +30,8 @@ import gym
 from tqdm.auto import tqdm
 from src.agent.base import BaseAgent
 from src.agent.drrn import DRRNAgent
-from src.agent.ppo import PPOAgent, PPOLagAgent
 from src.agent.ppo_llm import PPOLLMAgent
 from src.agent.ppo_lag_llm import PPOLagLLMAgent
-from src.agent.a2c import A2CLLMAgent
 from src.env.machiavelli.machiavelli_env import MachiavelliEnv, build_state
 from src.env.base import BaseEnv
 from src.env.test import SuperEasyEnv
@@ -86,7 +84,7 @@ def parse_args():
     )
     parser.add_argument(
         "--num_envs",
-        default=4,
+        default=2, # 8 for DRRN, 2 for PPO_LLM
         type=int,
         help="Number of instances of env (for diverse rollouts)",
     )
@@ -94,7 +92,7 @@ def parse_args():
         "--agent_type",
         default="DRRN",
         type=str,
-        help="Type of agent to use: DRRN | PPO_LLM | A2C_LLM | PPO_LLM_LAG | A2C_LLM_LAG",
+        help="Type of agent to use: DRRN | PPO_LLM | PPO_LLM_LAG",
     )
     parser.add_argument("--max_steps", default=5000, type=int)
     parser.add_argument("--update_freq", default=1, type=int)
@@ -436,14 +434,16 @@ def main():
     if args.agent_type == "DRRN":
         agent = DRRNAgent(args)
     elif args.agent_type == "PPO_LLM":
-        agent = PPOLLMAgent(args=args, loss="ppo")
-    elif args.agent_type == "A2C_LLM":
-        agent = A2CLLMAgent(args=args, loss="a2c")
+        agent = PPOLLMAgent(args=args, max_reward=envs[0].max_reward)
     elif args.agent_type == "PPO_LLM_LAG":
-        agent = PPOLagLLMAgent(args=args, loss="ppo", cost_limit=args.cost_limit)
-    elif args.agent_type == "A2C_LLM_LAG":
-        agent = A2CLLMAgent(args=args, loss="a2c", lag=True)
+        agent = PPOLagLLMAgent(
+            args=args, 
+            max_reward=envs[0].max_reward,
+            cost_limit=envs[0].two_sigma_min_cost,
+            max_cost=envs[0].two_sigma_max_cost
+        )
     else:
+        # Random Agent
         agent = BaseAgent(args)
 
     # Train

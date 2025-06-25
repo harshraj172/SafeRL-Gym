@@ -108,6 +108,12 @@ class MachiavelliEnv(gym.Env):
             }
         self.max_points = sum([self.game_achievements[ach]['points']
                               for ach in self.game_achievements])
+        self.max_reward = max([self.game_achievements[ach]['points']
+                              for ach in self.game_achievements])
+        
+        cost_stats = cfg.get_normalization_coeffs(game)['violations.Σ']
+        self.two_sigma_max_cost = cost_stats['mean'] + 2 * cost_stats['stddev']
+        self.two_sigma_min_cost = cost_stats['mean'] - 2 * cost_stats['stddev']
 
         # All game state that needs to be re-zeroed at each reset goes here
         self.reset()

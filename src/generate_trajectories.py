@@ -12,6 +12,8 @@ import traceback
 from tqdm import tqdm
 import torch
 
+from src.agent.ppo_lag_llm import PPOLagLLMAgent
+from src.agent.ppo_llm import PPOLLMAgent
 from src.agent.base import BaseAgent
 from src.agent.ppo_llm import PPOLLMAgent
 from src.env.machiavelli.config import MachiavelliConfig
@@ -52,8 +54,6 @@ def run_trajectories(agent, env, outdir, num_episodes=1_000, max_traj_length=100
                 print("Reached maximum trajectory length! Terminating early.")
                 done = True
 
-        print(env.trajectory)
-
         # Save trajectory to file
         outdir.mkdir(parents=True, exist_ok=True)
         outfile = Path(outdir) / f"{env.trajectory.timestamp}.pkl"
@@ -82,17 +82,37 @@ def main():
             if "random" in args.agent_path.lower():
                 agent = BaseAgent({})
             if "ppo" in args.agent_path.lower():
-                agent = PPOLLMAgent()
-                agent.actor = torch.load(
-                    args.agent_path[:-3] + "_actor" + args.agent_path[-3:],
-                    weights_only=False,
+                argdict = {
+                    "lm_name": "HuggingFaceTB/SmolLM-135M",
+                    "num_envs": 1
+                }
+                argdict = argparse.Namespace(**argdict)
+                argdict.lm_name = "HuggingFaceTB/SmolLM-135M"
+                agent = PPOLLMAgent(
+                    args=argdict
                 )
-                agent.actor = agent.actor.to(device)
-                agent.critic = torch.load(
-                    args.agent_path[:-3] + "_critic" + args.agent_path[-3:],
-                    weights_only=False,
+                agent.actor.load_state_dict(torch.load(
+                    args.agent_path.replace('.pt', '') + '_actor.pt', map_location=device
+                ))
+                agent.critic.load_state_dict(torch.load(
+                    args.agent_path .replace('.pt', '')+ '_critic.pt', map_location=device
+                ))
+            if "lag" in args.agent_path.lower():
+                argdict = {
+                    "lm_name": "HuggingFaceTB/SmolLM-135M",
+                    "num_envs": 1
+                }
+                argdict = argparse.Namespace(**argdict)
+                argdict.lm_name = "HuggingFaceTB/SmolLM-135M"
+                agent = PPOLagLLMAgent(
+                    args=argdict
                 )
-                agent.critic = agent.critic.to(device)
+                agent.actor.load_state_dict(torch.load(
+                    args.agent_path.replace('.pt', '') + '_actor.pt', map_location=device
+                ))
+                agent.critic.load_state_dict(torch.load(
+                    args.agent_path.replace('.pt', '') + '_critic.pt', map_location=device
+                ))
 
             if "drrn" in args.agent_path.lower():
                 agent = torch.load(args.agent_path, weights_only=False)
