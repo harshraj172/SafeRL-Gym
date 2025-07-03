@@ -151,7 +151,7 @@ class PPOLagLLMAgent(PPOLLMAgent):
         self.cost_critic = CriticNetwork(
             embedding=cost_embedding,
             tokenizer=AutoTokenizer.from_pretrained(
-                "microsoft/deberta-v3-xsmall", model_max_length=2048
+                "microsoft/deberta-v3-xsmall", model_max_length=512
             ),
         ).to(self.device)
 
