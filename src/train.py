@@ -10,6 +10,7 @@ USAGE:
     python -m src.train --max_steps 1000 --game kung-fu --agent_type PPO_LLM --lm_name google/gemma-3-1b-it --output_dir ./results/Machiavelli/PPO_LLM/google_gemma-3-1b-it/kung-fu
 """
 
+from collections import defaultdict
 import os
 import time
 import json
@@ -43,6 +44,7 @@ from src.utils import (
     Transition,
     State,
 )
+from src.metrics import corr
 
 logging.getLogger().setLevel(logging.CRITICAL)
 
@@ -221,6 +223,10 @@ def train(
         for info in infos
     ]
 
+    episode_rewards = defaultdict(list)
+    episode_reward = defaultdict(int)
+    episode_costs = defaultdict(list)
+    episode_cost = defaultdict(int)
     for step in tqdm(range(1, max_steps + 1)):
         # act
         action_ids, action_idxs, _ = agent.act(states, valid_ids, lm, args)
@@ -237,14 +243,25 @@ def train(
         ):
             ob, reward, done, info = env.step(action_idx)
             costs.append(info["game_state"]["safety_cost"])
+
+            # For logging add total cost and reward for episode
+            episode_reward[env] += reward
+            episode_cost[env] += info["game_state"]["safety_cost"]
+            if done:
+                # for logging purposes
+                episode_rewards[env].append(episode_reward[env])
+                episode_costs[env].append(episode_cost[env])
+                episode_reward[env] = 0
+                episode_cost[env] = 0
+
             if env.curr_points() >= max_score:  # new high score experienced
                 max_score = env.curr_points()
                 agent.memory.clear_alpha() if hasattr(agent, "memory") else None
             if done:
-                log_episode_stats(tb, info, step)
                 if env.curr_points() >= max_score:  # put in alpha queue
                     for transition in transitions[i]:
                         agent.observe(transition, is_prior=True)
+                
                 ob, info = env.reset(seed=args.seed)
                 next_obs, next_rewards, next_dones, next_infos = (
                     next_obs + [ob],
@@ -314,6 +331,30 @@ def train(
             tb.logkv("FPS", round((step * args.num_envs) / (time.time() - start), 2))
             tb.logkv("Max score seen", max_score)
             tb.logkv("Step", step)
+            # Mean episode stats - last 10 episodes
+            tb.logkv("Mean Episode Reward", np.mean([np.mean(rewards[-10:]) for rewards in episode_rewards.values()]))
+            tb.logkv("Mean cost", np.mean([np.mean(costs[-10:]) for costs in episode_costs.values()]))
+            # Last episode stats
+            tb.logkv("Last Episode Reward", np.mean([rewards[-1] for rewards in episode_rewards.values()]))
+            tb.logkv("Last cost", np.mean([costs[-1] for costs in episode_costs.values()]))
+            # Log cost and reward correlations for last ten
+            last_costs = np.array([
+                cost 
+                for costs in episode_costs.values()
+                for cost in costs[-10:]
+            ])
+            last_rews = np.array([
+                rew 
+                for rewards in episode_rewards.values()
+                for rew in rewards[-10:]
+            ])
+            tb.logkv("Cost-Reward Correlation", corr(last_costs, last_rews))
+            tb.logkv("Positive Cost-Reward Correlation", corr(
+                last_costs,
+                last_rews,
+                rectified=True
+            ))
+
             tb.dumpkvs()
         if step % update_freq == 0:
             loss = agent.update()
@@ -326,39 +367,43 @@ def train(
                 torch.save(
                     agent.actor.state_dict(),
                     savedir
-                    + "{}_{}_{}_game{}_actor.pt".format(
+                    + "{}_{}_{}_game{}_seed_{}_actor.pt".format(
                         args.env,
                         args.agent_type,
                         args.lm_name.replace("/", "_"),
                         args.game,
+                        args.seed
                     ),
                 )
                 torch.save(
                     agent.critic.state_dict(),
                     savedir
-                    + "{}_{}_{}_game{}_critic.pt".format(
+                    + "{}_{}_{}_game{}_seed_{}_critic.pt".format(
                         args.env,
                         args.agent_type,
                         args.lm_name.replace("/", "_"),
                         args.game,
+                        args.seed
                     ),
                 )
             else:
                 torch.save(
                     agent,
                     savedir
-                    + "{}_{}_{}_game{}.pt".format(
+                    + "{}_{}_{}_game{}_seed_{}.pt".format(
                         args.env,
                         args.agent_type,
                         args.lm_name.replace("/", "_"),
                         args.game,
+                        args.seed
                     ),
                 )
             # save args as json
             with open(
                 savedir
-                + "{}_{}_{}_game{}.json".format(
-                    args.env, args.agent_type, args.lm_name.replace("/", "_"), args.game
+                + "{}_{}_{}_game{}_seed_{}.json".format(
+                    args.env, args.agent_type, args.lm_name.replace("/", "_"), args.game,
+                    args.seed
                 ),
                 "w",
             ) as f:

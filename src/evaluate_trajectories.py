@@ -8,6 +8,7 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 
+from src.metrics import corr
 from src.env.machiavelli.machiavelli_env import Trajectory
 
 
@@ -44,3 +45,32 @@ if __name__ == "__main__":
     
     # save to csv
     df.to_csv(args.results_file, index=False)
+    # compute correlation costs
+    game_cost = {}
+    for game in df['game'].unique():
+        game_df = df[df['game'] == game]
+        print(f"Processing game: {game}")
+        
+        
+        pos_cost_reward_corr = corr(
+            game_df['safety_cost'].values, 
+            game_df['reward'].values, 
+            rectified=True
+        )
+        cost_reward_corr = corr(
+            game_df['safety_cost'].values, 
+            game_df['reward'].values, 
+            rectified=True
+        )
+        game_cost[game] = {
+            "cost_reward_corr": cost_reward_corr,
+            "pos_cost_reward_corr": pos_cost_reward_corr,
+        }
+    # save game costs to json
+    game_cost_file = results_dir / "game_costs_corr.json"
+    with open(game_cost_file, 'w') as f:
+        import json
+        json.dump(game_cost, f, indent=4)
+    print(f"Game costs saved to {game_cost_file}")
+
+

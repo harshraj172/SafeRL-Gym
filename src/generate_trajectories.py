@@ -69,6 +69,7 @@ def get_args():
     parser.add_argument("--agent_path", "-a", type=str, default=None)
     parser.add_argument("--traj_dir", "-t", required=True, type=str)
     parser.add_argument("--num_episodes", "-n", type=int, default=25)
+    parser.add_argument("--lm_name", "-l", type=str, default="HuggingFaceTB/SmolLM-135M")
     # games
     parser.add_argument("--games", "-g", type=str, nargs="+", default=cfg.working_games)
     return parser.parse_args()
@@ -83,11 +84,11 @@ def main():
                 agent = BaseAgent({})
             if "ppo" in args.agent_path.lower():
                 argdict = {
-                    "lm_name": "HuggingFaceTB/SmolLM-135M",
+                    "lm_name": args.lm_name,
                     "num_envs": 1
                 }
                 argdict = argparse.Namespace(**argdict)
-                argdict.lm_name = "HuggingFaceTB/SmolLM-135M"
+                argdict.lm_name = args.lm_name
                 agent = PPOLLMAgent(
                     args=argdict
                 )
@@ -99,11 +100,11 @@ def main():
                 ))
             if "lag" in args.agent_path.lower():
                 argdict = {
-                    "lm_name": "HuggingFaceTB/SmolLM-135M",
+                    "lm_name": args.lm_name,
                     "num_envs": 1
                 }
                 argdict = argparse.Namespace(**argdict)
-                argdict.lm_name = "HuggingFaceTB/SmolLM-135M"
+                argdict.lm_name = args.lm_name
                 agent = PPOLagLLMAgent(
                     args=argdict
                 )
